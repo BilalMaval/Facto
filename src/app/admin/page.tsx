@@ -3,16 +3,18 @@ import { createClient } from '@/lib/supabase/server'
 import { getBillingState, deriveOrgPlan } from '@/lib/billing'
 import { AdminFilterBar } from './AdminFilterBar'
 
-// "Plan" and "Status" answer two different questions and are kept
-// completely separate on purpose:
-//   - Plan (Free Trial / Basic / Premium): a computed tier label — never
-//     hand-typed, so it can't go stale. Premium reflects the OWNER's
-//     multi-business entitlement (owner_plans), which is why it can apply
-//     even to an org that hasn't made its own first payment yet — the tier
-//     belongs to the owner, not any one business.
+// "Plan" and "Status" answer two different questions but stay consistent
+// with each other:
+//   - Plan (No Plan / Free Trial / Basic / Premium): a computed tier label
+//     — never hand-typed, so it can't go stale. Premium reflects the
+//     OWNER's multi-business entitlement (owner_plans), but only once THIS
+//     org has itself started a trial or subscribed — a freshly created,
+//     untouched org is 'No Plan' regardless of the owner's tier elsewhere.
 //   - Status: this specific org's own subscription state, computed live
-//     from its own billing dates. Approving a Premium upgrade for an owner
-//     never changes any of their orgs' own status.
+//     from its own billing dates. Approving a plan_upgrade (Premium)
+//     payment now also activates the submitting org's own subscription,
+//     so paying for Premium moves Status off Trial/Pending immediately —
+//     see 20260101000020_activate_org_on_plan_upgrade.sql.
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
   { value: 'pending', label: 'Not started' },
@@ -26,6 +28,7 @@ const STATUS_OPTIONS = [
 
 const PLAN_OPTIONS = [
   { value: '', label: 'All plans' },
+  { value: 'No Plan', label: 'No Plan' },
   { value: 'Free Trial', label: 'Free Trial' },
   { value: 'Basic', label: 'Basic' },
   { value: 'Premium', label: 'Premium' },
@@ -97,7 +100,7 @@ export default async function AdminOrganizationsPage({
         memberCount: memberCount ?? 0,
         workerCount: workerCount ?? 0,
         liveStatus: getBillingState(org).status,
-        planLabel: deriveOrgPlan(org.subscribed_at, multiBusinessByOrg.get(org.id) ?? false),
+        planLabel: deriveOrgPlan(org.subscribed_at, org.trial_ends_at, multiBusinessByOrg.get(org.id) ?? false),
         ownerEmail: (emailsByOrg.get(org.id) ?? []).join(', ') || '—',
       }
     })
@@ -123,6 +126,22 @@ export default async function AdminOrganizationsPage({
   if (plan) rows = rows.filter((r) => r.planLabel === plan)
   if (from) rows = rows.filter((r) => (r.created_at?.slice(0, 10) ?? '') >= from)
   if (to) rows = rows.filter((r) => (r.created_at?.slice(0, 10) ?? '') <= to)
+
+  // Group each owner's businesses together — their oldest org is the
+  // "parent", any later ones (created via multi-business/Premium) render
+  // indented under it, instead of interleaved by raw creation date.
+  const ownerIdByOrg = new Map((ownerMemberships ?? []).map((m) => [m.organization_id, m.user_id]))
+  const groups = new Map<string, typeof rows>()
+  for (const r of rows) {
+    const key = ownerIdByOrg.get(r.id) ?? r.id
+    const group = groups.get(key)
+    if (group) group.push(r)
+    else groups.set(key, [r])
+  }
+  const orderedRows = [...groups.values()]
+    .map((group) => [...group].sort((a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0)))
+    .sort((a, b) => (a[0].created_at < b[0].created_at ? 1 : a[0].created_at > b[0].created_at ? -1 : 0))
+    .flatMap((group) => group.map((r, i) => ({ ...r, isChild: i > 0 })))
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
@@ -160,16 +179,20 @@ export default async function AdminOrganizationsPage({
             </tr>
           </thead>
           <tbody>
-            {!rows.length && (
+            {!orderedRows.length && (
               <tr>
                 <td colSpan={9} className="px-4 py-6 text-center text-zinc-400">
                   No organizations match.
                 </td>
               </tr>
             )}
-            {rows.map((org) => (
-              <tr key={org.id} className="border-b border-zinc-100 last:border-0">
-                <td className="px-4 py-3 font-medium text-zinc-900">
+            {orderedRows.map((org) => (
+              <tr
+                key={org.id}
+                className={`border-b border-zinc-100 last:border-0 ${org.isChild ? 'bg-zinc-50/60' : ''}`}
+              >
+                <td className={`px-4 py-3 ${org.isChild ? 'pl-8 text-zinc-600' : 'font-medium text-zinc-900'}`}>
+                  {org.isChild && <span className="mr-1.5 text-zinc-300">↳</span>}
                   {org.name}
                   {org.hidden_nav_tabs.length > 0 && (
                     <span className="ml-2 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
@@ -209,8 +232,9 @@ export default async function AdminOrganizationsPage({
 
 function PlanBadge({ plan }: { plan: string }) {
   const styles: Record<string, string> = {
+    'No Plan': 'bg-zinc-100 text-zinc-500',
     'Free Trial': 'bg-blue-50 text-blue-700',
-    Basic: 'bg-zinc-100 text-zinc-600',
+    Basic: 'bg-amber-50 text-amber-700',
     Premium: 'bg-purple-50 text-purple-700',
   }
   return (

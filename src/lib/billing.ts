@@ -119,14 +119,23 @@ export function isBlocked(status: BillingStatus) {
   return status === 'suspended' || status === 'trial_expired' || status === 'pending'
 }
 
-export type OrgPlanLabel = 'Free Trial' | 'Basic' | 'Premium'
+export type OrgPlanLabel = 'No Plan' | 'Free Trial' | 'Basic' | 'Premium'
 
 // A single, always-accurate tier label — computed, never hand-typed, so
-// there's nothing for an admin to forget to update. "Premium" reflects the
-// owner's multi-business entitlement (owner_plans), which is why it can
-// apply even to an org that hasn't made its own first payment yet: the
-// tier belongs to the owner, not any one business.
-export function deriveOrgPlan(subscribedAt: string | null, ownerHasMultiBusiness: boolean): OrgPlanLabel {
+// there's nothing for an admin to forget to update. Deliberately scoped to
+// what THIS org has actually done: an org that hasn't started a trial or
+// subscribed is always 'No Plan', even if its owner separately holds a
+// Premium multi-business entitlement (owner_plans) from a *different*
+// business — otherwise a freshly created, never-touched org shows
+// "Premium" next to a "Not started" status, which reads as contradictory.
+// Once the org has engaged (trial started or subscribed), Premium reflects
+// the owner's entitlement same as before.
+export function deriveOrgPlan(
+  subscribedAt: string | null,
+  trialEndsAt: string | null,
+  ownerHasMultiBusiness: boolean
+): OrgPlanLabel {
+  if (!subscribedAt && !trialEndsAt) return 'No Plan'
   if (ownerHasMultiBusiness) return 'Premium'
   if (subscribedAt) return 'Basic'
   return 'Free Trial'

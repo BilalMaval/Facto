@@ -31,18 +31,30 @@ const SUBMISSION_STATUS_STYLES: Record<string, string> = {
   rejected: 'bg-red-50 text-red-700',
 }
 
+const PURPOSE_LABELS: Record<string, string> = {
+  subscription: 'Subscription',
+  plan_upgrade: 'Multi-business upgrade',
+}
+
 export default async function BillingPage() {
-  const { user, membership } = await getCurrentMembership()
+  const { user, membership, memberships, parentOrganizationId } = await getCurrentMembership()
 
   if (!user) redirect('/login')
   if (!membership) redirect('/onboarding')
   if (membership.role !== 'owner') redirect('/dashboard')
 
   const org = membership.organization
-  const billing = getBillingState(org)
+
+  // Billing is centralized to the owner's first (parent) business — 2nd+
+  // businesses are auto-active under Premium and never carry their own
+  // subscription, so paying, transaction history, and the status card all
+  // read from the parent, no matter which business is currently active.
+  const billingOrgId = parentOrganizationId ?? org.id
+  const isChildBilling = billingOrgId !== org.id
+  const parentOrgName = memberships.find((m) => m.organizationId === billingOrgId)?.orgName ?? org.name
 
   const supabase = await createClient()
-  const [{ data: settings }, { data: submissions }] = await Promise.all([
+  const [{ data: settings }, { data: submissions }, { data: parentOrgRow }] = await Promise.all([
     supabase
       .from('platform_settings')
       .select(
@@ -51,11 +63,19 @@ export default async function BillingPage() {
       .maybeSingle(),
     supabase
       .from('payment_submissions')
-      .select('id, amount, method, transaction_reference, payment_date, status, submitted_at, review_note')
-      .eq('organization_id', org.id)
-      .eq('purpose', 'subscription')
+      .select('id, amount, method, transaction_reference, payment_date, status, submitted_at, review_note, purpose')
+      .eq('organization_id', billingOrgId)
       .order('submitted_at', { ascending: false }),
+    isChildBilling
+      ? supabase
+          .from('organizations')
+          .select('subscription_status, trial_ends_at, subscribed_at, paid_until, suspension_note')
+          .eq('id', billingOrgId)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ])
+
+  const billing = getBillingState(parentOrgRow ?? org)
 
   const planPrice = settings?.plan_price ?? 1599
   const planFeatures = settings?.plan_features ?? []
@@ -63,7 +83,11 @@ export default async function BillingPage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">Billing & plan</h1>
-      <p className="mt-1 text-sm text-zinc-500">Manage {org.name}&apos;s subscription.</p>
+      <p className="mt-1 text-sm text-zinc-500">
+        {isChildBilling
+          ? `Billing across your businesses is centralized under ${parentOrgName}'s subscription.`
+          : <>Manage {org.name}&apos;s subscription.</>}
+      </p>
 
       <div className="mt-6 grid gap-6 sm:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
@@ -83,7 +107,7 @@ export default async function BillingPage() {
           )}
           {billing.status === 'pending' && (
             <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-              <StartTrialButton organizationId={org.id} />
+              <StartTrialButton organizationId={billingOrgId} />
               <a
                 href="#activate"
                 className="inline-flex items-center justify-center rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800"
@@ -145,10 +169,11 @@ export default async function BillingPage() {
         <p className="mt-1 text-sm text-zinc-500">
           Pay via Easypaisa, JazzCash, or bank transfer, then submit the details below. We&apos;ll verify
           and activate your account.
+          {isChildBilling && ` You can pay from any of your businesses — this will be credited to ${parentOrgName}.`}
         </p>
         <div className="mt-4">
           <PaymentForm
-            organizationId={org.id}
+            organizationId={billingOrgId}
             defaultAmount={Number(planPrice)}
             settings={{
               easypaisa_number: settings?.easypaisa_number ?? null,
@@ -169,12 +194,18 @@ export default async function BillingPage() {
 
       {submissions && submissions.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-zinc-900">Submission history</h2>
+          <h2 className="text-lg font-semibold text-zinc-900">Transaction history</h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Every payment you&apos;ve submitted for {parentOrgName}, including subscription renewals and
+            any multi-business upgrade — centralized here regardless of which of your businesses you
+            paid from.
+          </p>
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
                   <th className="px-4 py-3">Date paid</th>
+                  <th className="px-4 py-3">Type</th>
                   <th className="px-4 py-3">Method</th>
                   <th className="px-4 py-3">Reference</th>
                   <th className="px-4 py-3 text-right">Amount</th>
@@ -185,6 +216,7 @@ export default async function BillingPage() {
                 {submissions.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
                     <td className="px-4 py-3 text-zinc-600">{s.payment_date}</td>
+                    <td className="px-4 py-3 text-zinc-600">{PURPOSE_LABELS[s.purpose] ?? s.purpose}</td>
                     <td className="px-4 py-3 text-zinc-600">{s.method.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-zinc-600">{s.transaction_reference}</td>
                     <td className="px-4 py-3 text-right text-zinc-600">{Number(s.amount).toFixed(2)}</td>

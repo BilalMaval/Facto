@@ -25,7 +25,7 @@ export const getCurrentMembership = cache(async function getCurrentMembership() 
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return { user: null, membership: null, memberships: [] }
+    return { user: null, membership: null, memberships: [], parentOrganizationId: null }
   }
 
   const { data: rows } = await supabase
@@ -37,7 +37,7 @@ export const getCurrentMembership = cache(async function getCurrentMembership() 
     .order('created_at', { ascending: true })
 
   if (!rows || rows.length === 0) {
-    return { user, membership: null, memberships: [] }
+    return { user, membership: null, memberships: [], parentOrganizationId: null }
   }
 
   const normalized = rows.map((row) => {
@@ -50,6 +50,11 @@ export const getCurrentMembership = cache(async function getCurrentMembership() 
   const activeOrgId = cookieStore.get(ACTIVE_ORG_COOKIE)?.value
   const active = normalized.find((m) => m.organization.id === activeOrgId) ?? normalized[0]
 
+  // The earliest org this user owns — billing (payments, transaction
+  // history) is centralized here, since 2nd+ businesses are auto-active
+  // under the owner's Premium plan and never carry their own subscription.
+  const parentOrganizationId = normalized.find((m) => m.role === 'owner')?.organization.id ?? null
+
   return {
     user,
     membership: active,
@@ -58,5 +63,6 @@ export const getCurrentMembership = cache(async function getCurrentMembership() 
       orgName: m.organization.name,
       role: m.role,
     })),
+    parentOrganizationId,
   }
 })

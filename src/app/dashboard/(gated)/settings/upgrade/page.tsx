@@ -50,8 +50,9 @@ export default async function UpgradePage() {
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight">Unlock multiple businesses</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        A one-time monthly add-on that only affects how many businesses you can create — it does not
-        change {org.name}&apos;s own subscription, which stays separate and independent.
+        A monthly add-on that unlocks adding more businesses and activates {org.name}&apos;s own
+        subscription if it isn&apos;t already active. Billing then stays centralized here — every
+        business you add afterward is included at no extra charge.
       </p>
 
       <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
@@ -68,7 +69,8 @@ export default async function UpgradePage() {
             <span className="text-emerald-600">✓</span> Switch between them from any dashboard screen
           </li>
           <li className="flex gap-2">
-            <span className="text-emerald-600">✓</span> Each business keeps its own independent subscription
+            <span className="text-emerald-600">✓</span> Every additional business is included — no separate
+            subscription needed
           </li>
         </ul>
       </div>
@@ -76,9 +78,9 @@ export default async function UpgradePage() {
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-zinc-900">Pay to unlock</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Pay via Easypaisa, JazzCash, or bank transfer, then submit the details below. We&apos;ll verify
-          and unlock multi-business access on your account — {org.name} itself keeps whatever
-          subscription status it already has.
+          Pay via Easypaisa, JazzCash, or bank transfer, then submit the details below. We&apos;ll verify,
+          unlock multi-business access, and activate {org.name}&apos;s own subscription if it isn&apos;t
+          already active.
         </p>
         {proration.credit > 0 && (
           <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
@@ -93,7 +95,7 @@ export default async function UpgradePage() {
             organizationId={org.id}
             defaultAmount={proration.amount}
             purpose="plan_upgrade"
-            successMessage="Request submitted — we'll review it and enable multi-business access shortly. Your existing businesses keep their own subscriptions unchanged. You can track its status below."
+            successMessage="Request submitted — we'll review it, enable multi-business access, and activate your subscription shortly. You can track its status below."
             settings={{
               easypaisa_number: settings?.easypaisa_number ?? null,
               easypaisa_title: settings?.easypaisa_title ?? null,

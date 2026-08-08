@@ -52,15 +52,14 @@ export default async function AdminOrganizationPage({
   }
 
   // Premium reflects the OWNER's multi-business entitlement (owner_plans),
-  // not this org's own subscription — see the note on the Organizations
-  // list for why Plan and Status are computed as separate, non-overlapping
-  // facts.
+  // but deriveOrgPlan only surfaces it once this org has itself started a
+  // trial or subscribed — see the note on the Organizations list.
   const ownerIds = (members ?? []).filter((m) => m.role === 'owner').map((m) => m.user_id)
   const { data: ownerPlans } = ownerIds.length
     ? await supabase.from('owner_plans').select('tier').in('user_id', ownerIds)
     : { data: [] as { tier: string }[] }
   const multiBusinessEnabled = (ownerPlans ?? []).some((p) => p.tier === 'premium')
-  const planLabel = deriveOrgPlan(org.subscribed_at, multiBusinessEnabled)
+  const planLabel = deriveOrgPlan(org.subscribed_at, org.trial_ends_at, multiBusinessEnabled)
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
