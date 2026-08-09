@@ -31,6 +31,7 @@ export function DashboardNav({
   hiddenTabs,
   memberships,
   activeOrgId,
+  supportBadgeCount = 0,
 }: {
   orgName: string
   role: string
@@ -38,6 +39,7 @@ export function DashboardNav({
   hiddenTabs: string[]
   memberships: Membership[]
   activeOrgId: string
+  supportBadgeCount?: number
 }) {
   const pathname = usePathname()
   const isAdmin = role === 'owner' || role === 'admin'
@@ -49,6 +51,7 @@ export function DashboardNav({
 
   function renderTab(tab: Tab) {
     const active = tab.href === '/dashboard' ? pathname === '/dashboard' : pathname.startsWith(tab.href)
+    const badgeCount = tab.key === 'support' ? supportBadgeCount : 0
     return (
       <Link
         key={tab.href}
@@ -60,6 +63,11 @@ export function DashboardNav({
         }`}
       >
         {tab.label}
+        {badgeCount > 0 && (
+          <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+            {badgeCount > 9 ? '9+' : badgeCount}
+          </span>
+        )}
       </Link>
     )
   }

@@ -5,6 +5,7 @@ import { getBillingState, deriveOrgPlan } from '@/lib/billing'
 import { BillingForm } from './BillingForm'
 import { BillingCycleForm } from './BillingCycleForm'
 import { VisibleTabsForm } from './VisibleTabsForm'
+import { RenameOrgForm } from './RenameOrgForm'
 
 const EFFECTIVE_STATUS_LABELS: Record<string, string> = {
   pending: 'Not started',
@@ -102,6 +103,7 @@ export default async function AdminOrganizationPage({
       </div>
 
       <div className="mt-6 grid gap-6 sm:grid-cols-2">
+        <RenameOrgForm orgId={org.id} currentName={org.name} />
         <BillingForm org={org} />
         <BillingCycleForm org={org} />
         <VisibleTabsForm orgId={org.id} hiddenTabs={org.hidden_nav_tabs} />

@@ -62,6 +62,29 @@ export async function setHiddenTabs(_prevState: FormState, formData: FormData): 
   return { success: true }
 }
 
+export async function renameOrganization(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const orgId = String(formData.get('orgId') ?? '')
+  const name = String(formData.get('name') ?? '').trim()
+
+  if (!orgId) {
+    return { error: 'Missing organization' }
+  }
+  if (!name) {
+    return { error: 'Name cannot be empty' }
+  }
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('admin_rename_organization', { p_org_id: orgId, p_name: name })
+
+  if (error) {
+    return { error: error.message }
+  }
+
+  revalidatePath('/admin')
+  revalidatePath(`/admin/organizations/${orgId}`)
+  return { success: true }
+}
+
 export async function adjustBillingDates(_prevState: FormState, formData: FormData): Promise<FormState> {
   const orgId = String(formData.get('orgId') ?? '')
   const subscribedAt = String(formData.get('subscribedAt') ?? '').trim()

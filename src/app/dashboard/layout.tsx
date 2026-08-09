@@ -2,6 +2,10 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCurrentMembership } from '@/lib/session'
 import { getBillingState } from '@/lib/billing'
+import { createClient } from '@/lib/supabase/server'
+import { countUnreadByTicket } from '@/lib/support'
+import { RealtimeRefresh } from '@/components/RealtimeRefresh'
+import { orgScopedSubscriptions } from '@/lib/realtimeSubscriptions'
 import { DashboardNav } from './DashboardNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -12,8 +16,31 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   const billing = getBillingState(membership.organization)
 
+  // Sum of unread admin replies across this org's tickets — matches the
+  // per-ticket badges on the Support list and clears the moment a thread
+  // is actually opened (see mark_ticket_read), not just when status changes.
+  const supabase = await createClient()
+  const { data: orgTickets } = await supabase
+    .from('support_tickets')
+    .select('id, org_last_read_at')
+    .eq('organization_id', membership.organization.id)
+
+  const orgTicketIds = (orgTickets ?? []).map((t) => t.id)
+  const { data: adminMessages } = orgTicketIds.length
+    ? await supabase
+        .from('support_ticket_messages')
+        .select('ticket_id, created_at')
+        .in('ticket_id', orgTicketIds)
+        .eq('is_platform_admin', true)
+    : { data: [] as { ticket_id: string; created_at: string }[] }
+
+  const lastReadByTicket = new Map((orgTickets ?? []).map((t) => [t.id, t.org_last_read_at]))
+  const unreadTicketMessages = countUnreadByTicket(adminMessages ?? [], lastReadByTicket)
+  const unreadSupportCount = [...unreadTicketMessages.values()].reduce((sum, n) => sum + n, 0)
+
   return (
     <div className="flex min-h-full flex-col bg-zinc-50">
+      <RealtimeRefresh subscriptions={orgScopedSubscriptions(membership.organization.id)} />
       <DashboardNav
         orgName={membership.organization.name}
         role={membership.role}
@@ -21,6 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         hiddenTabs={membership.organization.hidden_nav_tabs}
         memberships={memberships}
         activeOrgId={membership.organization.id}
+        supportBadgeCount={unreadSupportCount}
       />
       {billing.status === 'grace' && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-800 print:hidden">

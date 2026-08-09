@@ -22,7 +22,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from('support_tickets')
-    .select('id, subject, status, organization_id')
+    .select('id, subject, status, organization_id, org_last_read_at')
     .eq('id', id)
     .maybeSingle()
 
@@ -33,6 +33,17 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
     .select('id, body, is_platform_admin, created_at')
     .eq('ticket_id', id)
     .order('created_at', { ascending: true })
+
+  // Only write when there's actually something new to mark — mark_ticket_read
+  // itself updates support_tickets, which the realtime subscription would
+  // otherwise pick back up and re-trigger this same page render in an
+  // infinite loop (every render calling it again, forever).
+  const hasUnread = (messages ?? []).some(
+    (m) => m.is_platform_admin && (!ticket.org_last_read_at || m.created_at > ticket.org_last_read_at)
+  )
+  if (hasUnread) {
+    await supabase.rpc('mark_ticket_read', { p_ticket_id: id })
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10">
@@ -49,20 +60,24 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
         </span>
       </div>
 
-      <div className="mt-5 space-y-3">
-        {(messages ?? []).map((m) => (
-          <div
-            key={m.id}
-            className={`rounded-lg border p-4 text-sm ${
-              m.is_platform_admin ? 'border-zinc-200 bg-zinc-50' : 'border-zinc-200 bg-white'
-            }`}
-          >
-            <p className="text-xs font-medium text-zinc-400">
-              {m.is_platform_admin ? 'Support team' : 'You'} · {m.created_at?.slice(0, 16).replace('T', ' ')}
-            </p>
-            <p className="mt-1 whitespace-pre-wrap text-zinc-800">{m.body}</p>
-          </div>
-        ))}
+      <div className="mt-5 flex flex-col gap-3">
+        {(messages ?? []).map((m) => {
+          const isSelf = !m.is_platform_admin
+          return (
+            <div key={m.id} className={`flex ${isSelf ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+                  isSelf ? 'bg-zinc-900 text-white' : 'border border-zinc-200 bg-white text-zinc-800'
+                }`}
+              >
+                <p className={`text-xs font-medium ${isSelf ? 'text-zinc-300' : 'text-zinc-400'}`}>
+                  {isSelf ? 'You' : 'Support team'} · {m.created_at?.slice(0, 16).replace('T', ' ')}
+                </p>
+                <p className="mt-1 whitespace-pre-wrap">{m.body}</p>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {ticket.status !== 'closed' ? (

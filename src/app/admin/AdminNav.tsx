@@ -7,11 +7,17 @@ import { signOut } from '@/app/dashboard/actions'
 const TABS = [
   { href: '/admin', label: 'Organizations' },
   { href: '/admin/payments', label: 'Payments' },
-  { href: '/admin/support', label: 'Support' },
+  { href: '/admin/support', label: 'Support', key: 'support' },
   { href: '/admin/settings', label: 'Settings' },
 ]
 
-export function AdminNav({ userEmail }: { userEmail: string }) {
+export function AdminNav({
+  userEmail,
+  supportBadgeCount = 0,
+}: {
+  userEmail: string
+  supportBadgeCount?: number
+}) {
   const pathname = usePathname()
 
   return (
@@ -34,6 +40,7 @@ export function AdminNav({ userEmail }: { userEmail: string }) {
       <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pt-3">
         {TABS.map((tab) => {
           const active = tab.href === '/admin' ? pathname === '/admin' : pathname.startsWith(tab.href)
+          const badgeCount = tab.key === 'support' ? supportBadgeCount : 0
           return (
             <Link
               key={tab.href}
@@ -45,6 +52,11 @@ export function AdminNav({ userEmail }: { userEmail: string }) {
               }`}
             >
               {tab.label}
+              {badgeCount > 0 && (
+                <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+                  {badgeCount > 9 ? '9+' : badgeCount}
+                </span>
+              )}
             </Link>
           )
         })}

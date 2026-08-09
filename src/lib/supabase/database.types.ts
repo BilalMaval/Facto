@@ -378,27 +378,33 @@ export type Database = {
       }
       support_tickets: {
         Row: {
+          admin_last_read_at: string | null
           created_at: string
           created_by: string
           id: string
+          org_last_read_at: string | null
           organization_id: string
           status: string
           subject: string
           updated_at: string
         }
         Insert: {
+          admin_last_read_at?: string | null
           created_at?: string
           created_by: string
           id?: string
+          org_last_read_at?: string | null
           organization_id: string
           status?: string
           subject: string
           updated_at?: string
         }
         Update: {
+          admin_last_read_at?: string | null
           created_at?: string
           created_by?: string
           id?: string
+          org_last_read_at?: string | null
           organization_id?: string
           status?: string
           subject?: string
@@ -691,6 +697,29 @@ export type Database = {
           organization_id: string
         }[]
       }
+      admin_rename_organization: {
+        Args: { p_name: string; p_org_id: string }
+        Returns: {
+          billing_notes: string | null
+          created_at: string
+          hidden_nav_tabs: string[]
+          id: string
+          monthly_fee: number | null
+          name: string
+          paid_until: string | null
+          subscribed_at: string | null
+          subscription_status: string
+          suspension_note: string | null
+          trial_ends_at: string | null
+          week_start_day: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organizations"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       admin_set_hidden_tabs: {
         Args: { p_hidden_tabs: string[]; p_org_id: string }
         Returns: {
@@ -773,6 +802,7 @@ export type Database = {
       }
       is_org_member: { Args: { p_org_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      mark_ticket_read: { Args: { p_ticket_id: string }; Returns: undefined }
       post_ticket_message: {
         Args: { p_body: string; p_ticket_id: string }
         Returns: string
@@ -838,9 +868,11 @@ export type Database = {
       set_ticket_status: {
         Args: { p_status: string; p_ticket_id: string }
         Returns: {
+          admin_last_read_at: string | null
           created_at: string
           created_by: string
           id: string
+          org_last_read_at: string | null
           organization_id: string
           status: string
           subject: string
