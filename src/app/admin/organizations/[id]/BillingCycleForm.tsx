@@ -1,7 +1,9 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { adjustBillingDates, type FormState } from '../../actions'
+import { DatePicker } from '@/components/DatePicker'
+import type { DateFormat } from '@/lib/dates'
 
 const initialState: FormState = null
 
@@ -12,11 +14,24 @@ type Org = {
   suspension_note: string | null
 }
 
-export function BillingCycleForm({ org }: { org: Org }) {
+export function BillingCycleForm({ org, dateFormat }: { org: Org; dateFormat: DateFormat }) {
   const [state, formAction, pending] = useActionState(adjustBillingDates, initialState)
+
+  // After a successful save, the action's own response — not the next
+  // realtime-triggered page refresh — is the source of truth for what's
+  // displayed. `saveKey` only changes on a confirmed save, which remounts
+  // the date fields below so they re-adopt the trusted saved values.
+  const savedDates = state?.success ? state.savedDates : null
+  const subscribedAt = savedDates?.subscribedAt ?? org.subscribed_at ?? ''
+  const paidUntil = savedDates?.paidUntil ?? org.paid_until ?? ''
+  const saveKey = state?.success ? String(state.savedAt) : 'initial'
+
+  const [subscribedAtValue, setSubscribedAtValue] = useState(subscribedAt)
+  const [paidUntilValue, setPaidUntilValue] = useState(paidUntil)
 
   return (
     <form
+      key={saveKey}
       action={formAction}
       className="max-w-lg rounded-lg border border-zinc-200 bg-white p-6 shadow-sm"
     >
@@ -39,24 +54,26 @@ export function BillingCycleForm({ org }: { org: Org }) {
             <label htmlFor="subscribedAt" className="block text-sm font-medium">
               Subscribed since
             </label>
-            <input
+            <DatePicker
               id="subscribedAt"
               name="subscribedAt"
-              type="date"
-              defaultValue={org.subscribed_at ?? ''}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={subscribedAtValue}
+              onChange={setSubscribedAtValue}
+              dateFormat={dateFormat}
+              className="mt-1"
             />
           </div>
           <div>
             <label htmlFor="paidUntil" className="block text-sm font-medium">
               Paid until
             </label>
-            <input
+            <DatePicker
               id="paidUntil"
               name="paidUntil"
-              type="date"
-              defaultValue={org.paid_until ?? ''}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              value={paidUntilValue}
+              onChange={setPaidUntilValue}
+              dateFormat={dateFormat}
+              className="mt-1"
             />
           </div>
         </div>

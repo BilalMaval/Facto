@@ -4,19 +4,25 @@ import { useActionState, useEffect, useRef, useState, useTransition } from 'reac
 import { calculateAge } from '@/lib/age'
 import { formatCnic } from '@/lib/cnic'
 import { compressImage } from '@/lib/compressImage'
+import { formatMoney } from '@/lib/format'
 import {
-  checkWorkerCodeAvailable,
+  checkCnicAvailable,
   toggleWorkerActive,
   updateWorker,
+  updateWorkerPaymentType,
   uploadWorkerPhoto,
   type FormState,
 } from './actions'
 import { Field } from './Field'
 import { CodeAvailabilityHint, type CodeStatus } from './CodeAvailabilityHint'
+import { DatePicker } from '@/components/DatePicker'
+import { today as todayStr, type DateFormat } from '@/lib/dates'
+
+export type EmploymentType = 'contract' | 'salary' | 'hybrid'
 
 type Worker = {
   id: string
-  worker_code: string
+  worker_code: string | null
   name: string
   father_name: string | null
   contact_no: string | null
@@ -26,6 +32,8 @@ type Worker = {
   date_of_birth: string | null
   advance_balance: number
   is_active: boolean
+  employment_type: EmploymentType
+  weekly_salary: number | null
 }
 
 const initialState: FormState = null
@@ -34,18 +42,32 @@ export function WorkerRow({
   worker,
   organizationId,
   photoUrl,
+  currency,
+  showDecimals,
+  viewerRole,
+  dateFormat,
 }: {
   worker: Worker
   organizationId: string
   photoUrl?: string
+  currency: string
+  showDecimals: boolean
+  viewerRole: string
+  dateFormat: DateFormat
 }) {
+  const isOwner = viewerRole === 'owner'
   const [state, formAction, pending] = useActionState(updateWorker, initialState)
+  const [paymentTypeState, paymentTypeFormAction, paymentTypePending] = useActionState(
+    updateWorkerPaymentType,
+    initialState
+  )
 
-  const [workerCode, setWorkerCode] = useState(worker.worker_code)
+  const [workerCode, setWorkerCode] = useState(worker.worker_code ?? '')
   const [name, setName] = useState(worker.name)
   const [cnic, setCnic] = useState(formatCnic(worker.cnic ?? ''))
   const [dateOfBirth, setDateOfBirth] = useState(worker.date_of_birth ?? '')
-  const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle')
+  const [employmentType, setEmploymentType] = useState<EmploymentType>(worker.employment_type)
+  const [cnicStatus, setCnicStatus] = useState<CodeStatus>('idle')
   const [, startChecking] = useTransition()
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [compressingPhoto, setCompressingPhoto] = useState(false)
@@ -65,23 +87,25 @@ export function WorkerRow({
     }
   }
 
-  function handleWorkerCodeChange(value: string) {
-    setWorkerCode(value)
-    const code = value.trim()
-    setCodeStatus(code && code !== worker.worker_code ? 'checking' : 'idle')
+  function handleCnicChange(value: string) {
+    const formatted = formatCnic(value)
+    setCnic(formatted)
+    const digits = formatted.replace(/\D/g, '')
+    setCnicStatus(digits && digits !== (worker.cnic ?? '') ? 'checking' : 'idle')
   }
 
   useEffect(() => {
-    const code = workerCode.trim()
-    if (!code || code === worker.worker_code) return
+    if (!isOwner) return
+    const digits = cnic.replace(/\D/g, '')
+    if (digits.length !== 13 || digits === (worker.cnic ?? '')) return
     const timeout = setTimeout(() => {
       startChecking(async () => {
-        const { available } = await checkWorkerCodeAvailable(organizationId, code, worker.id)
-        setCodeStatus(available ? 'available' : 'taken')
+        const { available } = await checkCnicAvailable(organizationId, digits, worker.id)
+        setCnicStatus(available ? 'available' : 'taken')
       })
     }, 400)
     return () => clearTimeout(timeout)
-  }, [workerCode, organizationId, worker.id, worker.worker_code])
+  }, [cnic, organizationId, worker.id, worker.cnic, isOwner])
 
   const age = calculateAge(dateOfBirth)
 
@@ -117,97 +141,195 @@ export function WorkerRow({
         </form>
       </div>
 
-      <form action={formAction} className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2">
-        <input type="hidden" name="id" value={worker.id} />
+      <div className="flex-1 space-y-4">
+        <form action={formAction} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <input type="hidden" name="id" value={worker.id} />
 
-        {state?.error && (
-          <p className="sm:col-span-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
-        )}
+          {!isOwner && (
+            <p className="sm:col-span-2 text-xs text-zinc-400">
+              Only the business owner can edit a worker&apos;s profile.
+            </p>
+          )}
 
-        <div>
-          <label htmlFor={`${worker.id}-workerCode`} className="block text-xs font-medium text-zinc-500">
-            Worker ID
-          </label>
-          <input
-            id={`${worker.id}-workerCode`}
-            name="workerCode"
-            type="text"
-            required
-            value={workerCode}
-            onChange={(e) => handleWorkerCodeChange(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          {state?.error && (
+            <p className="sm:col-span-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+          )}
+
+          <div>
+            <label htmlFor={`${worker.id}-workerCode`} className="block text-xs font-medium text-zinc-500">
+              Worker ID <span className="text-zinc-400">(optional)</span>
+            </label>
+            <input
+              id={`${worker.id}-workerCode`}
+              name="workerCode"
+              type="text"
+              disabled={!isOwner}
+              value={workerCode}
+              onChange={(e) => setWorkerCode(e.target.value)}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500"
+            />
+          </div>
+
+          <div>
+            <label htmlFor={`${worker.id}-name`} className="block text-xs font-medium text-zinc-500">
+              Name
+            </label>
+            <input
+              id={`${worker.id}-name`}
+              name="name"
+              type="text"
+              required
+              disabled={!isOwner}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500"
+            />
+          </div>
+
+          <Field
+            idPrefix={worker.id}
+            label="Father's name"
+            name="fatherName"
+            defaultValue={worker.father_name ?? ''}
+            disabled={!isOwner}
           />
-          <CodeAvailabilityHint status={codeStatus} />
-        </div>
 
-        <div>
-          <label htmlFor={`${worker.id}-name`} className="block text-xs font-medium text-zinc-500">
-            Name
-          </label>
-          <input
-            id={`${worker.id}-name`}
-            name="name"
-            type="text"
-            required
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          <div>
+            <label htmlFor={`${worker.id}-cnic`} className="block text-xs font-medium text-zinc-500">
+              CNIC
+            </label>
+            <input
+              id={`${worker.id}-cnic`}
+              name="cnic"
+              type="text"
+              required
+              disabled={!isOwner}
+              inputMode="numeric"
+              placeholder="34101-1234567-1"
+              maxLength={15}
+              value={cnic}
+              onChange={(e) => handleCnicChange(e.target.value)}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500"
+            />
+            {isOwner && <CodeAvailabilityHint status={cnicStatus} label="CNIC" />}
+          </div>
+
+          <Field
+            idPrefix={worker.id}
+            label="Contact no."
+            name="contactNo"
+            defaultValue={worker.contact_no ?? ''}
+            disabled={!isOwner}
           />
-        </div>
-
-        <Field idPrefix={worker.id} label="Father's name" name="fatherName" defaultValue={worker.father_name ?? ''} />
-        <Field idPrefix={worker.id} label="Contact no." name="contactNo" defaultValue={worker.contact_no ?? ''} />
-        <Field idPrefix={worker.id} label="Designation" name="designation" defaultValue={worker.designation ?? ''} />
-        <Field idPrefix={worker.id} label="Address" name="address" defaultValue={worker.address ?? ''} />
-
-        <div>
-          <label htmlFor={`${worker.id}-cnic`} className="block text-xs font-medium text-zinc-500">
-            CNIC
-          </label>
-          <input
-            id={`${worker.id}-cnic`}
-            name="cnic"
-            type="text"
-            inputMode="numeric"
-            placeholder="34101-1234567-1"
-            maxLength={15}
-            value={cnic}
-            onChange={(e) => setCnic(formatCnic(e.target.value))}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          <Field
+            idPrefix={worker.id}
+            label="Designation"
+            name="designation"
+            defaultValue={worker.designation ?? ''}
+            disabled={!isOwner}
           />
-        </div>
-
-        <div>
-          <label htmlFor={`${worker.id}-dateOfBirth`} className="block text-xs font-medium text-zinc-500">
-            Date of birth
-          </label>
-          <input
-            id={`${worker.id}-dateOfBirth`}
-            name="dateOfBirth"
-            type="date"
-            value={dateOfBirth}
-            onChange={(e) => setDateOfBirth(e.target.value)}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          <Field
+            idPrefix={worker.id}
+            label="Address"
+            name="address"
+            defaultValue={worker.address ?? ''}
+            disabled={!isOwner}
           />
-          {age !== null && <p className="mt-1 text-xs text-zinc-500">Age: {age}</p>}
-        </div>
 
-        <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm text-zinc-500">
-            Advance balance:{' '}
-            <span className="font-medium text-zinc-900">{Number(worker.advance_balance).toFixed(2)}</span>
-          </p>
+          <div>
+            <label htmlFor={`${worker.id}-dateOfBirth`} className="block text-xs font-medium text-zinc-500">
+              Date of birth
+            </label>
+            <DatePicker
+              id={`${worker.id}-dateOfBirth`}
+              name="dateOfBirth"
+              disabled={!isOwner}
+              value={dateOfBirth}
+              onChange={setDateOfBirth}
+              dateFormat={dateFormat}
+              max={todayStr()}
+              className="mt-1"
+            />
+            {age !== null && <p className="mt-1 text-xs text-zinc-500">Age: {age}</p>}
+          </div>
+
+          <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-zinc-500">
+              Advance balance:{' '}
+              <span className="font-medium text-zinc-900">
+                {formatMoney(worker.advance_balance, currency, showDecimals)}
+              </span>
+            </p>
+            {isOwner && (
+              <button
+                type="submit"
+                disabled={pending || cnicStatus === 'taken'}
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
+              >
+                {pending ? 'Saving…' : 'Save'}
+              </button>
+            )}
+          </div>
+        </form>
+
+        <form
+          action={paymentTypeFormAction}
+          className="flex flex-wrap items-end gap-3 border-t border-zinc-100 pt-3"
+        >
+          <input type="hidden" name="organizationId" value={organizationId} />
+          <input type="hidden" name="workerId" value={worker.id} />
+
+          {paymentTypeState?.error && (
+            <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{paymentTypeState.error}</p>
+          )}
+
+          <div>
+            <label htmlFor={`${worker.id}-employmentType`} className="block text-xs font-medium text-zinc-500">
+              Payment type
+            </label>
+            <select
+              id={`${worker.id}-employmentType`}
+              name="employmentType"
+              value={employmentType}
+              onChange={(e) => setEmploymentType(e.target.value as EmploymentType)}
+              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            >
+              <option value="contract">Contract — paid per work logged</option>
+              <option value="salary">Salary — fixed weekly amount</option>
+              <option value="hybrid">Hybrid — work logged + weekly salary</option>
+            </select>
+          </div>
+
+          {employmentType !== 'contract' && (
+            <div>
+              <label htmlFor={`${worker.id}-weeklySalary`} className="block text-xs font-medium text-zinc-500">
+                Weekly Salary
+              </label>
+              <input
+                id={`${worker.id}-weeklySalary`}
+                name="weeklySalary"
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                defaultValue={worker.weekly_salary ?? ''}
+                className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              />
+            </div>
+          )}
+
           <button
             type="submit"
-            disabled={pending || codeStatus === 'taken'}
+            disabled={paymentTypePending}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
           >
-            {pending ? 'Saving…' : 'Save'}
+            {paymentTypePending ? 'Saving…' : 'Save payment type'}
           </button>
-        </div>
-      </form>
+        </form>
+      </div>
 
       <form action={toggleWorkerActive} className="flex items-start">
+        <input type="hidden" name="organizationId" value={organizationId} />
         <input type="hidden" name="id" value={worker.id} />
         <input type="hidden" name="nextActive" value={(!worker.is_active).toString()} />
         <button

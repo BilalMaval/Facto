@@ -2,8 +2,9 @@
 
 import { useActionState, useRef, useState } from 'react'
 import { submitPaymentProof, type FormState } from './actions'
-import { today } from '@/lib/dates'
+import { today, type DateFormat } from '@/lib/dates'
 import { compressImage } from '@/lib/compressImage'
+import { DatePicker } from '@/components/DatePicker'
 
 const initialState: FormState = null
 
@@ -29,15 +30,18 @@ export function PaymentForm({
   settings,
   purpose = 'subscription',
   successMessage,
+  dateFormat,
 }: {
   organizationId: string
   defaultAmount: number
   settings: PlatformSettings
   purpose?: 'subscription' | 'plan_upgrade'
   successMessage?: string
+  dateFormat: DateFormat
 }) {
   const [state, formAction, pending] = useActionState(submitPaymentProof, initialState)
   const [formGeneration, setFormGeneration] = useState(0)
+  const [paymentDate, setPaymentDate] = useState(today())
   const [lastHandledState, setLastHandledState] = useState<FormState>(null)
   if (state !== lastHandledState) {
     setLastHandledState(state)
@@ -200,14 +204,14 @@ export function PaymentForm({
           <label htmlFor="paymentDate" className="block text-sm font-medium">
             Date paid
           </label>
-          <input
+          <DatePicker
             id="paymentDate"
             name="paymentDate"
-            type="date"
-            required
-            defaultValue={today()}
+            value={paymentDate}
+            onChange={setPaymentDate}
+            dateFormat={dateFormat}
             max={today()}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            className="mt-1"
           />
         </div>
       </div>

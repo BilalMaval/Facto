@@ -67,3 +67,38 @@ export async function revokeInvite(formData: FormData) {
 
   revalidatePath('/dashboard/team')
 }
+
+// Owner-only — RLS also enforces this, this is just a clean error message
+// instead of a silent no-op.
+export async function removeMember(formData: FormData) {
+  const organizationId = String(formData.get('organizationId') ?? '')
+  const userId = String(formData.get('userId') ?? '')
+
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('memberships')
+    .delete()
+    .eq('organization_id', organizationId)
+    .eq('user_id', userId)
+
+  if (error) {
+    redirect(`/dashboard/team?error=${encodeURIComponent(error.message)}`)
+  }
+
+  revalidatePath('/dashboard/team')
+}
+
+// Any non-owner member can leave their own business whenever they want.
+export async function leaveOrganization(formData: FormData) {
+  const organizationId = String(formData.get('organizationId') ?? '')
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('leave_organization', { p_org_id: organizationId })
+
+  if (error) {
+    redirect(`/dashboard/team?error=${encodeURIComponent(error.message)}`)
+  }
+
+  revalidatePath('/dashboard', 'layout')
+  redirect('/dashboard')
+}

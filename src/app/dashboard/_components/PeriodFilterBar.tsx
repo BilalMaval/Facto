@@ -2,9 +2,11 @@
 
 import { useRouter, useSearchParams } from 'next/navigation'
 import { WorkerSearchSelect } from './WorkerSearchSelect'
+import { DatePicker } from '@/components/DatePicker'
 import type { Period } from '@/lib/period'
+import type { DateFormat } from '@/lib/dates'
 
-type Worker = { id: string; worker_code: string; name: string; is_active: boolean }
+type Worker = { id: string; worker_code: string | null; name: string; is_active: boolean }
 
 export function PeriodFilterBar({
   basePath,
@@ -15,6 +17,7 @@ export function PeriodFilterBar({
   endDate,
   workerId,
   paramPrefix = '',
+  dateFormat,
 }: {
   basePath: string
   workers: Worker[]
@@ -24,6 +27,7 @@ export function PeriodFilterBar({
   endDate: string
   workerId: string
   paramPrefix?: string
+  dateFormat: DateFormat
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -84,24 +88,24 @@ export function PeriodFilterBar({
             <label htmlFor="startDate" className="block text-sm font-medium">
               From
             </label>
-            <input
+            <DatePicker
               id="startDate"
-              type="date"
               value={startDate}
-              onChange={(e) => go({ startDate: e.target.value })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              onChange={(v) => go({ startDate: v })}
+              dateFormat={dateFormat}
+              className="mt-1"
             />
           </div>
           <div className="w-40">
             <label htmlFor="endDate" className="block text-sm font-medium">
               To
             </label>
-            <input
+            <DatePicker
               id="endDate"
-              type="date"
               value={endDate}
-              onChange={(e) => go({ endDate: e.target.value })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              onChange={(v) => go({ endDate: v })}
+              dateFormat={dateFormat}
+              className="mt-1"
             />
           </div>
         </>
@@ -139,12 +143,12 @@ export function PeriodFilterBar({
           <label htmlFor="date" className="block text-sm font-medium">
             {period === 'weekly' ? 'Any day in week' : 'Date'}
           </label>
-          <input
+          <DatePicker
             id="date"
-            type="date"
             value={date}
-            onChange={(e) => go({ date: e.target.value })}
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+            onChange={(v) => go({ date: v })}
+            dateFormat={dateFormat}
+            className="mt-1"
           />
         </div>
       )}

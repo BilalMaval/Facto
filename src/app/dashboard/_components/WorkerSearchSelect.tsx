@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
+import { workerLabel } from '@/lib/format'
 
-type Worker = { id: string; worker_code: string; name: string; is_active: boolean }
+type Worker = { id: string; worker_code: string | null; name: string; is_active: boolean }
 
 export function WorkerSearchSelect({
   id,
@@ -26,11 +27,11 @@ export function WorkerSearchSelect({
   const q = query.trim().toLowerCase()
   const filtered = q
     ? workers.filter(
-        (w) => w.name.toLowerCase().includes(q) || w.worker_code.toLowerCase().includes(q)
+        (w) => w.name.toLowerCase().includes(q) || (w.worker_code ?? '').toLowerCase().includes(q)
       )
     : workers
 
-  const displayValue = open ? query : selected ? `${selected.worker_code} — ${selected.name}` : query
+  const displayValue = open ? query : selected ? workerLabel(selected) : query
 
   return (
     <div className="relative">
@@ -75,7 +76,7 @@ export function WorkerSearchSelect({
               }}
               className="cursor-pointer px-3 py-2 hover:bg-zinc-50"
             >
-              {w.worker_code} — {w.name}
+              {workerLabel(w)}
               {!w.is_active && <span className="text-zinc-400"> (inactive)</span>}
             </li>
           ))}

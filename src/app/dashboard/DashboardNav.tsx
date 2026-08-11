@@ -13,7 +13,7 @@ const MAIN_TABS: Tab[] = [
   { href: '/dashboard/slips', label: 'Weekly slips' },
   { href: '/dashboard/work-codes', label: 'Work codes', adminOnly: true },
   { href: '/dashboard/workers', label: 'Workers', adminOnly: true },
-  { href: '/dashboard/team', label: 'Manage team', adminOnly: true },
+  { href: '/dashboard/team', label: 'Team' },
 ]
 
 const ACCOUNT_TABS: Tab[] = [

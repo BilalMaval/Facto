@@ -64,7 +64,14 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-6">
-        <SettingsForm organizationId={org.id} currentWeekStartDay={org.week_start_day} />
+        <SettingsForm
+          organizationId={org.id}
+          currentWeekStartDay={org.week_start_day}
+          currentTimezone={org.timezone}
+          currentCurrency={org.currency}
+          currentDateFormat={org.date_format}
+          currentShowDecimals={org.show_decimals}
+        />
       </div>
     </div>
   )

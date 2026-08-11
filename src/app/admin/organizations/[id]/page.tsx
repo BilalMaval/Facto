@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getBillingState, deriveOrgPlan } from '@/lib/billing'
+import type { DateFormat } from '@/lib/dates'
 import { BillingForm } from './BillingForm'
 import { BillingCycleForm } from './BillingCycleForm'
 import { VisibleTabsForm } from './VisibleTabsForm'
@@ -28,7 +29,7 @@ export default async function AdminOrganizationPage({
   const { data: org } = await supabase
     .from('organizations')
     .select(
-      'id, name, subscription_status, monthly_fee, billing_notes, week_start_day, created_at, trial_ends_at, subscribed_at, paid_until, suspension_note, hidden_nav_tabs'
+      'id, name, subscription_status, monthly_fee, billing_notes, week_start_day, created_at, trial_ends_at, subscribed_at, paid_until, suspension_note, hidden_nav_tabs, date_format'
     )
     .eq('id', id)
     .maybeSingle()
@@ -105,7 +106,7 @@ export default async function AdminOrganizationPage({
       <div className="mt-6 grid gap-6 sm:grid-cols-2">
         <RenameOrgForm orgId={org.id} currentName={org.name} />
         <BillingForm org={org} />
-        <BillingCycleForm org={org} />
+        <BillingCycleForm org={org} dateFormat={org.date_format as DateFormat} />
         <VisibleTabsForm orgId={org.id} hiddenTabs={org.hidden_nav_tabs} />
       </div>
     </div>

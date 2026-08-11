@@ -1,15 +1,17 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
-import { addDays, currentWeekStart, today as todayStr } from '@/lib/dates'
+import { addDays, currentWeekStart, formatDate, formatTime, today as todayStr, type DateFormat } from '@/lib/dates'
 import { one } from '@/lib/one'
+import { formatMoney, workerLabel } from '@/lib/format'
 import { EntryForm } from './entries/EntryForm'
 import { PaymentForm } from './entries/PaymentForm'
 import { deleteEntry, deletePayment } from './entries/actions'
 import { SlipView } from './slips/SlipView'
 import { DashboardWorkerSelector } from './DashboardWorkerSelector'
 
-type WorkerRef = { name: string; worker_code: string }
+type WorkerRef = { name: string; worker_code: string | null }
 type WorkCodeRef = { code: string; description: string }
 
 export default async function DashboardPage({
@@ -17,11 +19,19 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ workerId?: string; error?: string }>
 }) {
-  const { workerId, error } = await searchParams
+  const { workerId: workerIdParam, error } = await searchParams
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
   if (!membership) redirect('/onboarding')
+
+  // Falls back to the last worker viewed (set by DashboardWorkerSelector)
+  // when the URL doesn't specify one — e.g. the plain "Dashboard" nav link
+  // has no query params, so switching tabs and back would otherwise reset
+  // to "no worker selected" every time. Re-validated below against this
+  // org's actual active workers either way.
+  const cookieStore = await cookies()
+  const workerId = workerIdParam || cookieStore.get('dash_worker_id')?.value
 
   const org = membership.organization
   const canFinalize = membership.role === 'owner' || membership.role === 'admin'
@@ -37,6 +47,7 @@ export default async function DashboardPage({
     { data: weekEntries },
     { data: outstandingWorkers },
     { data: recentEntries },
+    { data: recentPayments },
   ] = await Promise.all([
     supabase
       .from('workers')
@@ -66,8 +77,14 @@ export default async function DashboardPage({
     supabase
       .from('work_entries')
       .select(
-        'id, entry_date, quantity, amount, worker:workers(name, worker_code), work_code:work_codes(code, description)'
+        'id, entry_date, quantity, amount, created_at, worker:workers(name, worker_code), work_code:work_codes(code, description)'
       )
+      .eq('organization_id', org.id)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('payments')
+      .select('id, payment_date, amount, note, created_at, worker:workers(name, worker_code)')
       .eq('organization_id', org.id)
       .order('created_at', { ascending: false })
       .limit(10),
@@ -93,31 +110,56 @@ export default async function DashboardPage({
       </div>
 
       {selectedWorker ? (
-        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.5fr]">
           <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-zinc-700">
-              Log work &amp; payments — {selectedWorker.worker_code} · {selectedWorker.name}
+              Log work &amp; payments — {workerLabel(selectedWorker)}
             </h2>
             <div className="mt-3 space-y-3">
               {workCodes?.length ? (
-                <EntryForm organizationId={org.id} today={today} workers={formWorkers} workCodes={workCodes} />
+                <EntryForm
+                  organizationId={org.id}
+                  today={today}
+                  workers={formWorkers}
+                  workCodes={workCodes}
+                  dateFormat={org.date_format as DateFormat}
+                />
               ) : (
                 <p className="text-sm text-zinc-400">Add at least one active work code first.</p>
               )}
-              <PaymentForm organizationId={org.id} today={today} workers={formWorkers} />
+              <PaymentForm
+                organizationId={org.id}
+                today={today}
+                workers={formWorkers}
+                dateFormat={org.date_format as DateFormat}
+              />
             </div>
 
-            <TodayActivity organizationId={org.id} workerId={selectedWorker.id} today={today} />
+            <WeekActivity
+              organizationId={org.id}
+              workerId={selectedWorker.id}
+              weekStart={weekStart}
+              weekEnd={weekEnd}
+              timezone={org.timezone}
+              currency={org.currency}
+              dateFormat={org.date_format as DateFormat}
+              showDecimals={org.show_decimals}
+              canDelete={membership.role === 'owner'}
+            />
           </section>
 
-          <section>
-            <h2 className="text-sm font-semibold text-zinc-700">This week&apos;s report</h2>
+          <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <SlipView
               organizationId={org.id}
               orgName={org.name}
               workerId={selectedWorker.id}
               weekStart={weekStart}
               canFinalize={canFinalize}
+              currency={org.currency}
+              dateFormat={org.date_format as DateFormat}
+              showDecimals={org.show_decimals}
+              embedded
+              heading="This week's report"
             />
           </section>
         </div>
@@ -130,12 +172,15 @@ export default async function DashboardPage({
       <div className="mt-12 border-t border-zinc-200 pt-8">
         <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            This week&apos;s payroll ({weekStart} to {weekEnd})
+            This week&apos;s payroll ({formatDate(weekStart, org.date_format as DateFormat)} to{' '}
+            {formatDate(weekEnd, org.date_format as DateFormat)})
           </p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">{weeklyPayroll.toFixed(2)}</p>
+          <p className="mt-1 text-3xl font-semibold tracking-tight">
+            {formatMoney(weeklyPayroll, org.currency, org.show_decimals)}
+          </p>
         </div>
 
-        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <h2 className="text-sm font-medium text-zinc-500">Workers with outstanding advances</h2>
             {!outstandingWorkers?.length && (
@@ -144,10 +189,10 @@ export default async function DashboardPage({
             <ul className="mt-2 divide-y divide-zinc-200">
               {outstandingWorkers?.map((w) => (
                 <li key={w.id} className="flex items-center justify-between py-2 text-sm">
-                  <span>
-                    {w.worker_code} — {w.name}
+                  <span>{workerLabel(w)}</span>
+                  <span className="font-medium text-red-700">
+                    {formatMoney(w.advance_balance, org.currency, org.show_decimals)}
                   </span>
-                  <span className="font-medium text-red-700">{Number(w.advance_balance).toFixed(2)}</span>
                 </li>
               ))}
             </ul>
@@ -162,12 +207,32 @@ export default async function DashboardPage({
                 const workCode = one<WorkCodeRef>(e.work_code)
                 return (
                   <li key={e.id} className="py-2 text-sm">
-                    <p>
-                      {worker?.worker_code} — {worker?.name}
-                    </p>
+                    <p>{worker ? workerLabel(worker) : '—'}</p>
                     <p className="text-xs text-zinc-500">
-                      {e.entry_date} · {workCode?.code} ({workCode?.description}) · qty {e.quantity} ={' '}
-                      {Number(e.amount).toFixed(2)}
+                      {formatDate(e.entry_date, org.date_format as DateFormat)} ·{' '}
+                      {formatTime(e.created_at, org.timezone)} · {workCode?.code} ({workCode?.description}) · qty{' '}
+                      {e.quantity} = {formatMoney(e.amount, org.currency, org.show_decimals)}
+                    </p>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+
+          <div>
+            <h2 className="text-sm font-medium text-zinc-500">Recent payments</h2>
+            {!recentPayments?.length && <p className="mt-2 text-sm text-zinc-400">No payments logged yet.</p>}
+            <ul className="mt-2 divide-y divide-zinc-200">
+              {recentPayments?.map((p) => {
+                const worker = one<WorkerRef>(p.worker)
+                return (
+                  <li key={p.id} className="py-2 text-sm">
+                    <p>{worker ? workerLabel(worker) : '—'}</p>
+                    <p className="text-xs text-zinc-500">
+                      {formatDate(p.payment_date, org.date_format as DateFormat)} ·{' '}
+                      {formatTime(p.created_at, org.timezone)} · paid{' '}
+                      {formatMoney(p.amount, org.currency, org.show_decimals)}
+                      {p.note ? ` · ${p.note}` : ''}
                     </p>
                   </li>
                 )
@@ -180,66 +245,130 @@ export default async function DashboardPage({
   )
 }
 
-async function TodayActivity({
+async function WeekActivity({
   organizationId,
   workerId,
-  today,
+  weekStart,
+  weekEnd,
+  timezone,
+  currency,
+  dateFormat,
+  showDecimals,
+  canDelete,
 }: {
   organizationId: string
   workerId: string
-  today: string
+  weekStart: string
+  weekEnd: string
+  timezone: string
+  currency: string
+  dateFormat: DateFormat
+  showDecimals: boolean
+  canDelete: boolean
 }) {
   const supabase = await createClient()
+
+  // Filtered by when they were LOGGED (created_at), not the business date
+  // they're for — a backdated entry made today still belongs in today's
+  // activity feed, even though its own date is from last month. (What
+  // week that amount actually counts toward is a separate question,
+  // handled by counted_week_start — see SlipView.tsx.)
+  const rangeStart = `${weekStart}T00:00:00.000Z`
+  const rangeEnd = `${addDays(weekEnd, 1)}T00:00:00.000Z`
 
   const [{ data: entries }, { data: payments }] = await Promise.all([
     supabase
       .from('work_entries')
-      .select('id, quantity, rate_snapshot, amount, work_code:work_codes(code, description)')
+      .select(
+        'id, entry_date, quantity, rate_snapshot, amount, created_at, work_code:work_codes(code, description)'
+      )
       .eq('organization_id', organizationId)
       .eq('worker_id', workerId)
-      .eq('entry_date', today)
+      .gte('created_at', rangeStart)
+      .lt('created_at', rangeEnd)
       .order('created_at', { ascending: false }),
     supabase
       .from('payments')
-      .select('id, amount, note')
+      .select('id, payment_date, amount, note, created_at')
       .eq('organization_id', organizationId)
       .eq('worker_id', workerId)
-      .eq('payment_date', today)
+      .gte('created_at', rangeStart)
+      .lt('created_at', rangeEnd)
       .order('created_at', { ascending: false }),
   ])
 
   if (!entries?.length && !payments?.length) {
-    return <p className="mt-4 text-sm text-zinc-400">Nothing logged for today yet.</p>
+    return <p className="mt-4 text-sm text-zinc-400">Nothing logged this week yet.</p>
   }
 
-  return (
-    <div className="mt-4 space-y-1">
-      <h3 className="text-xs font-medium text-zinc-500">Today</h3>
-      <ul className="divide-y divide-zinc-100">
-        {entries?.map((e) => {
-          const workCode = one<WorkCodeRef>(e.work_code)
-          return (
-            <li key={e.id} className="flex items-center justify-between py-2 text-sm">
-              <span className="text-zinc-600">
-                {workCode?.code} · {e.quantity} × {Number(e.rate_snapshot).toFixed(2)} ={' '}
-                <span className="font-medium text-zinc-900">{Number(e.amount).toFixed(2)}</span>
+  // Interleave entries and payments by the exact moment they were logged,
+  // instead of showing every entry before every payment.
+  type Row = { key: string; created_at: string; node: React.ReactNode }
+  const entryRows: Row[] = (entries ?? []).map((e) => {
+    const workCode = one<WorkCodeRef>(e.work_code)
+    // Dated before this week started — logged today, but for a previous
+    // week — flagged so it's obvious at a glance it's a backdated entry.
+    const isPastWeek = e.entry_date < weekStart
+    return {
+      key: `e-${e.id}`,
+      created_at: e.created_at,
+      node: (
+        <li
+          key={`e-${e.id}`}
+          className={`flex items-center justify-between py-2 text-sm ${
+            isPastWeek ? 'rounded-md bg-amber-50 px-2 -mx-2' : ''
+          }`}
+        >
+          <span className="text-zinc-600">
+            <span className="text-xs text-zinc-400">
+              {formatDate(e.entry_date, dateFormat)} · {formatTime(e.created_at, timezone)}
+            </span>{' '}
+            {isPastWeek && (
+              <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                Previous week
               </span>
-              <form action={deleteEntry}>
-                <input type="hidden" name="id" value={e.id} />
-                <input type="hidden" name="returnTo" value="/dashboard" />
-                <button type="submit" className="text-xs text-red-600 underline hover:text-red-800">
-                  Delete
-                </button>
-              </form>
-            </li>
-          )
-        })}
-        {payments?.map((p) => (
-          <li key={p.id} className="flex items-center justify-between py-2 text-sm">
-            <span className="text-zinc-600">
-              Paid <span className="font-medium text-zinc-900">{Number(p.amount).toFixed(2)}</span>
-              {p.note ? ` · ${p.note}` : ''}
-            </span>
+            )}{' '}
+            {workCode?.code} · {e.quantity} × {formatMoney(e.rate_snapshot, currency, showDecimals)} ={' '}
+            <span className="font-medium text-zinc-900">{formatMoney(e.amount, currency, showDecimals)}</span>
+          </span>
+          {canDelete && (
+            <form action={deleteEntry}>
+              <input type="hidden" name="id" value={e.id} />
+              <input type="hidden" name="returnTo" value="/dashboard" />
+              <button type="submit" className="text-xs text-red-600 underline hover:text-red-800">
+                Delete
+              </button>
+            </form>
+          )}
+        </li>
+      ),
+    }
+  })
+  const paymentRows: Row[] = (payments ?? []).map((p) => {
+    const isPastWeek = p.payment_date < weekStart
+    return {
+      key: `p-${p.id}`,
+      created_at: p.created_at,
+      node: (
+        <li
+          key={`p-${p.id}`}
+          className={`flex items-center justify-between py-2 text-sm ${
+            isPastWeek ? 'rounded-md bg-amber-50 px-2 -mx-2' : ''
+          }`}
+        >
+          <span className="text-zinc-600">
+            <span className="text-xs text-zinc-400">
+              {formatDate(p.payment_date, dateFormat)} · {formatTime(p.created_at, timezone)}
+            </span>{' '}
+            {isPastWeek && (
+              <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+                Previous week
+              </span>
+            )}{' '}
+            Paid <span className="font-medium text-zinc-900">{formatMoney(p.amount, currency, showDecimals)}</span>
+            {p.note ? ` · ${p.note}` : ''}
+          </span>
+          {canDelete && (
             <form action={deletePayment}>
               <input type="hidden" name="id" value={p.id} />
               <input type="hidden" name="returnTo" value="/dashboard" />
@@ -247,9 +376,18 @@ async function TodayActivity({
                 Delete
               </button>
             </form>
-          </li>
-        ))}
-      </ul>
+          )}
+        </li>
+      ),
+    }
+  })
+
+  const rows = [...entryRows, ...paymentRows].sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+  return (
+    <div className="mt-4 space-y-1">
+      <h3 className="text-xs font-medium text-zinc-500">This week&apos;s activity</h3>
+      <ul className="divide-y divide-zinc-100">{rows.map((r) => r.node)}</ul>
     </div>
   )
 }

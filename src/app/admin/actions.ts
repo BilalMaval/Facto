@@ -3,7 +3,14 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 
-export type FormState = { error?: string; success?: boolean } | null
+export type FormState =
+  | {
+      error?: string
+      success?: boolean
+      savedAt?: number
+      savedDates?: { subscribedAt: string | null; paidUntil: string | null }
+    }
+  | null
 
 export async function updateOrganizationBilling(
   _prevState: FormState,
@@ -111,5 +118,14 @@ export async function adjustBillingDates(_prevState: FormState, formData: FormDa
 
   revalidatePath('/admin')
   revalidatePath(`/admin/organizations/${orgId}`)
-  return { success: true }
+
+  // Returned directly from this same request/response — the form uses this
+  // as the source of truth for what's now displayed, instead of whatever
+  // the next realtime-triggered page refresh happens to fetch (see the
+  // same fix applied to dashboard/(gated)/settings/SettingsForm.tsx).
+  return {
+    success: true,
+    savedAt: Date.now(),
+    savedDates: { subscribedAt: subscribedAt || null, paidUntil: paidUntil || null },
+  }
 }

@@ -1,9 +1,14 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { formatSigned } from '@/lib/format'
+import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
 import { finalizeSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
+
+function parseAmount(display: string) {
+  const parsed = parseFloat(display.replace(/,/g, ''))
+  return Number.isNaN(parsed) ? 0 : parsed
+}
 
 export function FinalizeSection({
   organizationId,
@@ -13,6 +18,8 @@ export function FinalizeSection({
   payable,
   currentAdvanceBalance,
   defaultFinalAmount,
+  currency,
+  showDecimals,
 }: {
   organizationId: string
   workerId: string
@@ -21,11 +28,12 @@ export function FinalizeSection({
   payable: number
   currentAdvanceBalance: number
   defaultFinalAmount: number
+  currency: string
+  showDecimals: boolean
 }) {
-  const [finalAmount, setFinalAmount] = useState(defaultFinalAmount.toFixed(2))
+  const [finalAmount, setFinalAmount] = useState(() => formatNumber(defaultFinalAmount, showDecimals))
 
-  const parsed = parseFloat(finalAmount)
-  const finalAmountNum = Number.isNaN(parsed) ? 0 : parsed
+  const finalAmountNum = parseAmount(finalAmount)
   const delta = finalAmountNum - payable
   const projectedAdvance = useMemo(
     () => currentAdvanceBalance + delta,
@@ -38,27 +46,37 @@ export function FinalizeSection({
       <input type="hidden" name="workerId" value={workerId} />
       <input type="hidden" name="weekStart" value={weekStart} />
       <input type="hidden" name="weekEnd" value={weekEnd} />
+      <input type="hidden" name="finalAmount" value={finalAmountNum} />
 
       <div className="flex items-center justify-between gap-3">
-        <label htmlFor="finalAmount" className="font-semibold">
+        <label htmlFor="finalAmount-input" className="font-semibold">
           Final Amount
         </label>
         <input
-          id="finalAmount"
-          name="finalAmount"
-          type="number"
-          step="0.01"
-          min="0"
+          id="finalAmount-input"
+          type="text"
+          inputMode="decimal"
           required
           value={finalAmount}
-          onChange={(e) => setFinalAmount(e.target.value)}
-          className="w-28 rounded-md border border-zinc-300 px-2 py-1 text-right text-sm"
+          onChange={(e) => setFinalAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+          onBlur={() => setFinalAmount(formatNumber(parseAmount(finalAmount), showDecimals))}
+          className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-right text-sm"
         />
       </div>
 
-      {delta < 0 && <SummaryRow label="Advance -" value={delta} signed />}
-      {delta > 0 && <SummaryRow label="Advance +" value={delta} signed />}
-      <SummaryRow label="Total Advance (after finalizing)" value={projectedAdvance} bold />
+      {delta < 0 && (
+        <SummaryRow label="Advance -" value={delta} signed currency={currency} showDecimals={showDecimals} />
+      )}
+      {delta > 0 && (
+        <SummaryRow label="Advance +" value={delta} signed currency={currency} showDecimals={showDecimals} />
+      )}
+      <SummaryRow
+        label="Total Advance (after finalizing)"
+        value={projectedAdvance}
+        bold
+        currency={currency}
+        showDecimals={showDecimals}
+      />
 
       <div className="pt-2">
         <ConfirmButton
@@ -77,16 +95,20 @@ function SummaryRow({
   value,
   bold,
   signed,
+  currency,
+  showDecimals,
 }: {
   label: string
   value: number
   bold?: boolean
   signed?: boolean
+  currency: string
+  showDecimals: boolean
 }) {
   return (
     <div className={`flex justify-between ${bold ? 'font-semibold' : ''}`}>
       <span>{label}</span>
-      <span>{signed ? formatSigned(value) : value.toFixed(2)}</span>
+      <span>{signed ? formatSigned(value, currency, showDecimals) : formatMoney(value, currency, showDecimals)}</span>
     </div>
   )
 }

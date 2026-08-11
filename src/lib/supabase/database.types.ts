@@ -94,42 +94,54 @@ export type Database = {
         Row: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }
         Insert: {
           billing_notes?: string | null
           created_at?: string
+          currency?: string
+          date_format?: string
           hidden_nav_tabs?: string[]
           id?: string
           monthly_fee?: number | null
           name: string
           paid_until?: string | null
+          show_decimals?: boolean
           subscribed_at?: string | null
           subscription_status?: string
           suspension_note?: string | null
+          timezone?: string
           trial_ends_at?: string | null
           week_start_day?: string
         }
         Update: {
           billing_notes?: string | null
           created_at?: string
+          currency?: string
+          date_format?: string
           hidden_nav_tabs?: string[]
           id?: string
           monthly_fee?: number | null
           name?: string
           paid_until?: string | null
+          show_decimals?: boolean
           subscribed_at?: string | null
           subscription_status?: string
           suspension_note?: string | null
+          timezone?: string
           trial_ends_at?: string | null
           week_start_day?: string
         }
@@ -221,6 +233,7 @@ export type Database = {
       payments: {
         Row: {
           amount: number
+          counted_week_start: string
           created_at: string
           created_by: string
           id: string
@@ -231,6 +244,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          counted_week_start: string
           created_at?: string
           created_by: string
           id?: string
@@ -241,6 +255,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          counted_week_start?: string
           created_at?: string
           created_by?: string
           id?: string
@@ -536,6 +551,7 @@ export type Database = {
       work_entries: {
         Row: {
           amount: number
+          counted_week_start: string
           created_at: string
           created_by: string
           entry_date: string
@@ -548,6 +564,7 @@ export type Database = {
         }
         Insert: {
           amount?: number
+          counted_week_start: string
           created_at?: string
           created_by: string
           entry_date: string
@@ -560,6 +577,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          counted_week_start?: string
           created_at?: string
           created_by?: string
           entry_date?: string
@@ -604,13 +622,15 @@ export type Database = {
           created_at: string
           date_of_birth: string | null
           designation: string | null
+          employment_type: string
           father_name: string | null
           id: string
           is_active: boolean
           name: string
           organization_id: string
           photo_url: string | null
-          worker_code: string
+          weekly_salary: number | null
+          worker_code: string | null
         }
         Insert: {
           address?: string | null
@@ -621,13 +641,15 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           designation?: string | null
+          employment_type?: string
           father_name?: string | null
           id?: string
           is_active?: boolean
           name: string
           organization_id: string
           photo_url?: string | null
-          worker_code: string
+          weekly_salary?: number | null
+          worker_code?: string | null
         }
         Update: {
           address?: string | null
@@ -638,13 +660,15 @@ export type Database = {
           created_at?: string
           date_of_birth?: string | null
           designation?: string | null
+          employment_type?: string
           father_name?: string | null
           id?: string
           is_active?: boolean
           name?: string
           organization_id?: string
           photo_url?: string | null
-          worker_code?: string
+          weekly_salary?: number | null
+          worker_code?: string | null
         }
         Relationships: [
           {
@@ -672,14 +696,18 @@ export type Database = {
         Returns: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }
@@ -702,14 +730,18 @@ export type Database = {
         Returns: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }
@@ -725,14 +757,18 @@ export type Database = {
         Returns: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }
@@ -802,6 +838,16 @@ export type Database = {
       }
       is_org_member: { Args: { p_org_id: string }; Returns: boolean }
       is_platform_admin: { Args: never; Returns: boolean }
+      leave_organization: { Args: { p_org_id: string }; Returns: undefined }
+      list_org_members: {
+        Args: { p_org_id: string }
+        Returns: {
+          email: string
+          joined_at: string
+          role: string
+          user_id: string
+        }[]
+      }
       mark_ticket_read: { Args: { p_ticket_id: string }; Returns: undefined }
       post_ticket_message: {
         Args: { p_body: string; p_ticket_id: string }
@@ -885,19 +931,84 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      set_worker_active: {
+        Args: { p_is_active: boolean; p_org_id: string; p_worker_id: string }
+        Returns: {
+          address: string | null
+          advance_balance: number
+          age: number | null
+          cnic: string | null
+          contact_no: string | null
+          created_at: string
+          date_of_birth: string | null
+          designation: string | null
+          employment_type: string
+          father_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          photo_url: string | null
+          weekly_salary: number | null
+          worker_code: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "workers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      set_worker_payment_type: {
+        Args: {
+          p_employment_type: string
+          p_org_id: string
+          p_weekly_salary: number
+          p_worker_id: string
+        }
+        Returns: {
+          address: string | null
+          advance_balance: number
+          age: number | null
+          cnic: string | null
+          contact_no: string | null
+          created_at: string
+          date_of_birth: string | null
+          designation: string | null
+          employment_type: string
+          father_name: string | null
+          id: string
+          is_active: boolean
+          name: string
+          organization_id: string
+          photo_url: string | null
+          weekly_salary: number | null
+          worker_code: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "workers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       start_free_trial: {
         Args: { p_org_id: string }
         Returns: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }
@@ -918,14 +1029,18 @@ export type Database = {
         Returns: {
           billing_notes: string | null
           created_at: string
+          currency: string
+          date_format: string
           hidden_nav_tabs: string[]
           id: string
           monthly_fee: number | null
           name: string
           paid_until: string | null
+          show_decimals: boolean
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
+          timezone: string
           trial_ends_at: string | null
           week_start_day: string
         }

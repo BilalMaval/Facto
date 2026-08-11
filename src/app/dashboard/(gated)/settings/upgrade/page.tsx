@@ -4,6 +4,7 @@ import { getCurrentMembership } from '@/lib/session'
 import { getOwnerTier } from '@/lib/ownerPlan'
 import { createClient } from '@/lib/supabase/server'
 import { computeProratedUpgrade } from '@/lib/billing'
+import type { DateFormat } from '@/lib/dates'
 import { PaymentForm } from '../../../billing/PaymentForm'
 
 const SUBMISSION_STATUS_STYLES: Record<string, string> = {
@@ -94,6 +95,7 @@ export default async function UpgradePage() {
           <PaymentForm
             organizationId={org.id}
             defaultAmount={proration.amount}
+            dateFormat={org.date_format as DateFormat}
             purpose="plan_upgrade"
             successMessage="Request submitted — we'll review it, enable multi-business access, and activate your subscription shortly. You can track its status below."
             settings={{

@@ -24,3 +24,40 @@ export function weekStartOf(dateStr: string, weekStartDay: WeekStartDay = 'monda
 export function currentWeekStart(weekStartDay: WeekStartDay = 'monday') {
   return weekStartOf(today(), weekStartDay)
 }
+
+export function formatTime(isoString: string, timeZone: string) {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(
+    new Date(isoString)
+  )
+}
+
+export type DateFormat = 'YYYY-MM-DD' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'DD-MM-YYYY' | 'DD MMM YYYY'
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+// dateStr is always a plain YYYY-MM-DD calendar date (entry_date,
+// payment_date, week_start, …) — reformatted for display only, per the
+// org's own date_format preference. Native <input type="date"> pickers
+// still render in the browser's own locale format; only text/table
+// displays go through this.
+export function formatDate(dateStr: string, format: DateFormat) {
+  const [y, m, d] = dateStr.split('-')
+  switch (format) {
+    case 'DD/MM/YYYY':
+      return `${d}/${m}/${y}`
+    case 'MM/DD/YYYY':
+      return `${m}/${d}/${y}`
+    case 'DD-MM-YYYY':
+      return `${d}-${m}-${y}`
+    case 'DD MMM YYYY':
+      return `${d} ${MONTH_ABBR[Number(m) - 1]} ${y}`
+    default:
+      return dateStr
+  }
+}
+
+const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
+export function dayAbbr(dateStr: string) {
+  return DAY_ABBR[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]
+}

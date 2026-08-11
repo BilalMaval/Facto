@@ -2,14 +2,15 @@ import { redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { one } from '@/lib/one'
-import { today as todayStr } from '@/lib/dates'
+import { formatDate, formatTime, today as todayStr, type DateFormat } from '@/lib/dates'
 import { periodRange, periodLabel, type Period } from '@/lib/period'
+import { formatMoney, workerLabel } from '@/lib/format'
 import { EntryForm } from './EntryForm'
 import { PaymentForm } from './PaymentForm'
 import { deleteEntry, deletePayment } from './actions'
 import { PeriodFilterBar } from '../../_components/PeriodFilterBar'
 
-type WorkerRef = { name: string; worker_code: string }
+type WorkerRef = { name: string; worker_code: string | null }
 type WorkCodeRef = { code: string; description: string }
 
 export default async function EntriesPage({
@@ -39,6 +40,7 @@ export default async function EntriesPage({
 
   const org = membership.organization
   const today = todayStr()
+  const canDelete = membership.role === 'owner'
 
   const period: Period = (['daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).includes(
     periodParam as Period
@@ -71,7 +73,7 @@ export default async function EntriesPage({
   let entriesQuery = supabase
     .from('work_entries')
     .select(
-      'id, entry_date, quantity, rate_snapshot, amount, created_by, worker:workers(name, worker_code), work_code:work_codes(code, description)'
+      'id, entry_date, quantity, rate_snapshot, amount, created_at, created_by, worker:workers(name, worker_code), work_code:work_codes(code, description)'
     )
     .eq('organization_id', org.id)
     .gte('entry_date', range.start)
@@ -81,7 +83,7 @@ export default async function EntriesPage({
 
   let paymentsQuery = supabase
     .from('payments')
-    .select('id, payment_date, amount, note, created_by, worker:workers(name, worker_code)')
+    .select('id, payment_date, amount, note, created_at, created_by, worker:workers(name, worker_code)')
     .eq('organization_id', org.id)
     .gte('payment_date', range.start)
     .lte('payment_date', range.end)
@@ -109,12 +111,23 @@ export default async function EntriesPage({
         </p>
       ) : (
         <div className="mt-6">
-          <EntryForm organizationId={org.id} today={today} workers={activeWorkers} workCodes={workCodes} />
+          <EntryForm
+            organizationId={org.id}
+            today={today}
+            workers={activeWorkers}
+            workCodes={workCodes}
+            dateFormat={org.date_format as DateFormat}
+          />
         </div>
       )}
 
       {activeWorkers.length ? (
-        <PaymentForm organizationId={org.id} today={today} workers={activeWorkers} />
+        <PaymentForm
+          organizationId={org.id}
+          today={today}
+          workers={activeWorkers}
+          dateFormat={org.date_format as DateFormat}
+        />
       ) : null}
 
       <div className="mt-10">
@@ -128,6 +141,7 @@ export default async function EntriesPage({
             startDate={startDate}
             endDate={endDate}
             workerId={filterWorkerId ?? ''}
+            dateFormat={org.date_format as DateFormat}
           />
         </div>
       </div>
@@ -142,19 +156,27 @@ export default async function EntriesPage({
             return (
               <li key={e.id} className="flex items-center justify-between py-3 text-sm">
                 <div>
-                  <span className="text-zinc-400">{e.entry_date}</span>{' '}
-                  <span className="font-medium">{worker?.worker_code} — {worker?.name}</span>{' '}
+                  <span className="text-zinc-400">
+                    {formatDate(e.entry_date, org.date_format as DateFormat)} ·{' '}
+                    {formatTime(e.created_at, org.timezone)}
+                  </span>{' '}
+                  <span className="font-medium">{worker ? workerLabel(worker) : '—'}</span>{' '}
                   <span className="text-zinc-500">
-                    · {workCode?.code} ({workCode?.description}) · {e.quantity} × {Number(e.rate_snapshot).toFixed(2)} ={' '}
-                    <span className="font-medium text-zinc-900">{Number(e.amount).toFixed(2)}</span>
+                    · {workCode?.code} ({workCode?.description}) · {e.quantity} ×{' '}
+                    {formatMoney(e.rate_snapshot, org.currency, org.show_decimals)} ={' '}
+                    <span className="font-medium text-zinc-900">
+                      {formatMoney(e.amount, org.currency, org.show_decimals)}
+                    </span>
                   </span>
                 </div>
-                <form action={deleteEntry}>
-                  <input type="hidden" name="id" value={e.id} />
-                  <button type="submit" className="text-red-600 underline hover:text-red-800">
-                    Delete
-                  </button>
-                </form>
+                {canDelete && (
+                  <form action={deleteEntry}>
+                    <input type="hidden" name="id" value={e.id} />
+                    <button type="submit" className="text-red-600 underline hover:text-red-800">
+                      Delete
+                    </button>
+                  </form>
+                )}
               </li>
             )
           })}
@@ -170,19 +192,27 @@ export default async function EntriesPage({
             return (
               <li key={p.id} className="flex items-center justify-between py-3 text-sm">
                 <div>
-                  <span className="text-zinc-400">{p.payment_date}</span>{' '}
-                  <span className="font-medium">{worker?.worker_code} — {worker?.name}</span>{' '}
+                  <span className="text-zinc-400">
+                    {formatDate(p.payment_date, org.date_format as DateFormat)} ·{' '}
+                    {formatTime(p.created_at, org.timezone)}
+                  </span>{' '}
+                  <span className="font-medium">{worker ? workerLabel(worker) : '—'}</span>{' '}
                   <span className="text-zinc-500">
-                    · paid <span className="font-medium text-zinc-900">{Number(p.amount).toFixed(2)}</span>
+                    · paid{' '}
+                    <span className="font-medium text-zinc-900">
+                      {formatMoney(p.amount, org.currency, org.show_decimals)}
+                    </span>
                     {p.note ? ` · ${p.note}` : ''}
                   </span>
                 </div>
-                <form action={deletePayment}>
-                  <input type="hidden" name="id" value={p.id} />
-                  <button type="submit" className="text-red-600 underline hover:text-red-800">
-                    Delete
-                  </button>
-                </form>
+                {canDelete && (
+                  <form action={deletePayment}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <button type="submit" className="text-red-600 underline hover:text-red-800">
+                      Delete
+                    </button>
+                  </form>
+                )}
               </li>
             )
           })}

@@ -2,8 +2,11 @@
 
 import { useActionState, useState } from 'react'
 import { createPayment, type FormState } from './actions'
+import { workerLabel } from '@/lib/format'
+import { DatePicker } from '@/components/DatePicker'
+import type { DateFormat } from '@/lib/dates'
 
-type Worker = { id: string; worker_code: string; name: string }
+type Worker = { id: string; worker_code: string | null; name: string }
 
 const initialState: FormState = null
 
@@ -11,13 +14,16 @@ export function PaymentForm({
   organizationId,
   today,
   workers,
+  dateFormat,
 }: {
   organizationId: string
   today: string
   workers: Worker[]
+  dateFormat: DateFormat
 }) {
   const [state, formAction, pending] = useActionState(createPayment, initialState)
 
+  const [paymentDate, setPaymentDate] = useState(today)
   const [amount, setAmount] = useState('')
   const [amountTouched, setAmountTouched] = useState(false)
   const [note, setNote] = useState('')
@@ -53,13 +59,13 @@ export function PaymentForm({
         <label htmlFor="paymentDate" className="block text-sm font-medium">
           Date
         </label>
-        <input
+        <DatePicker
           id="paymentDate"
           name="paymentDate"
-          type="date"
-          required
-          defaultValue={today}
-          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          value={paymentDate}
+          onChange={setPaymentDate}
+          dateFormat={dateFormat}
+          className="mt-1"
         />
       </div>
       <div className="min-w-[180px] flex-1">
@@ -74,7 +80,7 @@ export function PaymentForm({
         >
           {workers.map((w) => (
             <option key={w.id} value={w.id}>
-              {w.worker_code} — {w.name}
+              {workerLabel(w)}
             </option>
           ))}
         </select>

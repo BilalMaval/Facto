@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { getBillingState } from '@/lib/billing'
+import type { DateFormat } from '@/lib/dates'
 import { PaymentForm } from './PaymentForm'
 import { StartTrialButton } from './StartTrialButton'
 
@@ -175,6 +176,7 @@ export default async function BillingPage() {
           <PaymentForm
             organizationId={billingOrgId}
             defaultAmount={Number(planPrice)}
+            dateFormat={org.date_format as DateFormat}
             settings={{
               easypaisa_number: settings?.easypaisa_number ?? null,
               easypaisa_title: settings?.easypaisa_title ?? null,

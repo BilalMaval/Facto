@@ -2,8 +2,12 @@
 
 import { useActionState, useMemo, useState } from 'react'
 import { createEntry, type FormState } from './actions'
+import { workerLabel } from '@/lib/format'
+import { WorkCodeSearchSelect } from '../../_components/WorkCodeSearchSelect'
+import { DatePicker } from '@/components/DatePicker'
+import type { DateFormat } from '@/lib/dates'
 
-type Worker = { id: string; worker_code: string; name: string }
+type Worker = { id: string; worker_code: string | null; name: string }
 type WorkCode = { id: string; code: string; description: string; rate: number }
 
 const initialState: FormState = null
@@ -13,14 +17,17 @@ export function EntryForm({
   today,
   workers,
   workCodes,
+  dateFormat,
 }: {
   organizationId: string
   today: string
   workers: Worker[]
   workCodes: WorkCode[]
+  dateFormat: DateFormat
 }) {
   const [state, formAction, pending] = useActionState(createEntry, initialState)
 
+  const [entryDate, setEntryDate] = useState(today)
   const [workCodeId, setWorkCodeId] = useState(workCodes[0]?.id ?? '')
   const [quantity, setQuantity] = useState('')
   const [quantityTouched, setQuantityTouched] = useState(false)
@@ -65,13 +72,13 @@ export function EntryForm({
         <label htmlFor="entryDate" className="block text-sm font-medium">
           Date
         </label>
-        <input
+        <DatePicker
           id="entryDate"
           name="entryDate"
-          type="date"
-          required
-          defaultValue={today}
-          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          value={entryDate}
+          onChange={setEntryDate}
+          dateFormat={dateFormat}
+          className="mt-1"
         />
       </div>
       <div className="min-w-[180px] flex-1">
@@ -86,7 +93,7 @@ export function EntryForm({
         >
           {workers.map((w) => (
             <option key={w.id} value={w.id}>
-              {w.worker_code} — {w.name}
+              {workerLabel(w)}
             </option>
           ))}
         </select>
@@ -95,20 +102,13 @@ export function EntryForm({
         <label htmlFor="workCodeId" className="block text-sm font-medium">
           Work code
         </label>
-        <select
+        <WorkCodeSearchSelect
           id="workCodeId"
-          name="workCodeId"
-          required
+          workCodes={workCodes}
           value={workCodeId}
-          onChange={(e) => setWorkCodeId(e.target.value)}
-          className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
-        >
-          {workCodes.map((wc) => (
-            <option key={wc.id} value={wc.id}>
-              {wc.code} — {wc.description} (@{Number(wc.rate).toFixed(2)})
-            </option>
-          ))}
-        </select>
+          onChange={setWorkCodeId}
+        />
+        <input type="hidden" name="workCodeId" value={workCodeId} />
       </div>
       <div className="w-28">
         <label htmlFor="quantity" className="block text-sm font-medium">

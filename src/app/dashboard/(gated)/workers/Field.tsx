@@ -5,6 +5,7 @@ export function Field({
   required,
   placeholder,
   defaultValue,
+  disabled,
 }: {
   label: string
   name: string
@@ -12,6 +13,7 @@ export function Field({
   required?: boolean
   placeholder?: string
   defaultValue?: string
+  disabled?: boolean
 }) {
   const id = `${idPrefix}-${name}`
   return (
@@ -26,7 +28,8 @@ export function Field({
         required={required}
         placeholder={placeholder}
         defaultValue={defaultValue}
-        className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+        disabled={disabled}
+        className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500"
       />
     </div>
   )

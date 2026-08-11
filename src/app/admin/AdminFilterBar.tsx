@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { DatePicker } from '@/components/DatePicker'
 
 type SelectFilter = {
   name: string
@@ -98,24 +99,24 @@ export function AdminFilterBar({
             <label htmlFor="admin-filter-from" className="block text-sm font-medium">
               From
             </label>
-            <input
+            <DatePicker
               id="admin-filter-from"
-              type="date"
               value={dateRange.fromValue}
-              onChange={(e) => go({ [dateRange.fromParam]: e.target.value })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              onChange={(v) => go({ [dateRange.fromParam]: v })}
+              dateFormat="YYYY-MM-DD"
+              className="mt-1"
             />
           </div>
           <div className="w-36">
             <label htmlFor="admin-filter-to" className="block text-sm font-medium">
               To
             </label>
-            <input
+            <DatePicker
               id="admin-filter-to"
-              type="date"
               value={dateRange.toValue}
-              onChange={(e) => go({ [dateRange.toParam]: e.target.value })}
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+              onChange={(v) => go({ [dateRange.toParam]: v })}
+              dateFormat="YYYY-MM-DD"
+              className="mt-1"
             />
           </div>
         </div>
