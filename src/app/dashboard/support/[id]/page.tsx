@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
+import { formatDate, formatTime, type DateFormat } from '@/lib/dates'
 import { closeTicket, reopenTicket } from '../actions'
 import { ReplyForm } from '../ReplyForm'
 
@@ -19,6 +20,8 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   if (!membership) redirect('/onboarding')
   if (membership.role !== 'owner') redirect('/dashboard')
 
+  const dateFormat = membership.organization.date_format as DateFormat
+  const timezone = membership.organization.timezone
   const supabase = await createClient()
   const { data: ticket } = await supabase
     .from('support_tickets')
@@ -71,7 +74,12 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
                 }`}
               >
                 <p className={`text-xs font-medium ${isSelf ? 'text-zinc-300' : 'text-zinc-400'}`}>
-                  {isSelf ? 'You' : 'Support team'} · {m.created_at?.slice(0, 16).replace('T', ' ')}
+                  {isSelf ? 'You' : 'Support team'} ·{' '}
+                  {m.created_at && (
+                    <>
+                      {formatDate(m.created_at.slice(0, 10), dateFormat)} {formatTime(m.created_at, timezone)}
+                    </>
+                  )}
                 </p>
                 <p className="mt-1 whitespace-pre-wrap">{m.body}</p>
               </div>

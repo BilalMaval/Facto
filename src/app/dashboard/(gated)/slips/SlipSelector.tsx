@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
-import { addDays, type DateFormat } from '@/lib/dates'
+import { addDays, resolveWeekBounds, type DateFormat, type WeekScheme, type WeekStartDay } from '@/lib/dates'
 import { WorkerSearchSelect } from '../../_components/WorkerSearchSelect'
 import { DatePicker } from '@/components/DatePicker'
 import { setPreferenceCookie } from '@/lib/clientCookie'
@@ -12,13 +12,24 @@ export function SlipSelector({
   workers,
   workerId,
   weekStart,
+  weekEnd,
+  currentWeekStart,
+  weekStartDay,
+  previousWeekStartDay,
+  transitionDate,
   dateFormat,
 }: {
   workers: Worker[]
   workerId?: string
   weekStart: string
+  weekEnd: string
+  currentWeekStart: string
+  weekStartDay: WeekStartDay
+  previousWeekStartDay: WeekStartDay | null
+  transitionDate: string | null
   dateFormat: DateFormat
 }) {
+  const scheme: WeekScheme = { weekStartDay, previousWeekStartDay, transitionDate }
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -56,34 +67,54 @@ export function SlipSelector({
           />
         </div>
       </div>
-      <div className="w-56">
+      <div className="shrink-0">
         <label htmlFor="weekStart" className="block text-sm font-medium">
           Date
         </label>
         <div className="mt-1 flex items-center gap-1">
           <button
             type="button"
-            onClick={() => go({ weekStart: addDays(weekStart, -7) })}
+            onClick={() => go({ weekStart: resolveWeekBounds(addDays(weekStart, -1), scheme).weekStart })}
             aria-label="Previous week"
-            className="rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
+            className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
           >
             ‹
           </button>
-          <DatePicker
-            id="weekStart"
-            value={weekStart}
-            onChange={(v) => go({ weekStart: v })}
-            dateFormat={dateFormat}
-          />
+          <div className="w-44">
+            <DatePicker
+              id="weekStart"
+              value={weekStart}
+              onChange={(v) => go({ weekStart: resolveWeekBounds(v, scheme).weekStart })}
+              dateFormat={dateFormat}
+            />
+          </div>
           <button
             type="button"
-            onClick={() => go({ weekStart: addDays(weekStart, 7) })}
+            onClick={() => go({ weekStart: resolveWeekBounds(addDays(weekEnd, 1), scheme).weekStart })}
             aria-label="Next week"
-            className="rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
+            className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
           >
             ›
           </button>
         </div>
+      </div>
+      <div className="shrink-0">
+        {/* Doubles as a status indicator: green/disabled when the viewed
+            week already is the current one, actionable otherwise — so it's
+            obvious at a glance which week you're looking at relative to
+            today without having to compare dates yourself. */}
+        <button
+          type="button"
+          onClick={() => go({ weekStart: currentWeekStart })}
+          disabled={weekStart === currentWeekStart}
+          className={
+            weekStart === currentWeekStart
+              ? 'cursor-default rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium whitespace-nowrap text-emerald-700'
+              : 'rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium whitespace-nowrap text-zinc-700 hover:bg-zinc-50'
+          }
+        >
+          {weekStart === currentWeekStart ? 'Current week' : 'Go to current week'}
+        </button>
       </div>
     </div>
   )

@@ -24,3 +24,24 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* "Print slip" targets only the #printable-slip card, wherever it's
+   embedded (standalone Weekly Slips page or the Dashboard's split view) —
+   everything else on the page is hidden rather than relying on print:hidden
+   sprinkled across every surrounding element, which is easy to miss as new
+   dashboard content gets added later. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-slip,
+  #printable-slip * {
+    visibility: visible;
+  }
+  #printable-slip {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}

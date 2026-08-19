@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { getOwnerTier } from '@/lib/ownerPlan'
+import { createClient } from '@/lib/supabase/server'
+import { currentWeekBounds, resolveWeekBounds, type WeekScheme, type WeekStartDay } from '@/lib/dates'
 import { switchActiveOrganization } from '../../actions'
 import { SettingsForm } from './SettingsForm'
 
@@ -15,6 +17,12 @@ export default async function SettingsPage() {
   const org = membership.organization
   const tier = await getOwnerTier(user.id)
   const addBusinessHref = tier === 'premium' ? '/dashboard/settings/new-business' : '/dashboard/settings/upgrade'
+  const scheme: WeekScheme = {
+    weekStartDay: org.week_start_day as WeekStartDay,
+    previousWeekStartDay: org.week_scheme_previous_start_day as WeekStartDay | null,
+    transitionDate: org.week_scheme_transition_date,
+  }
+  const openPastWeeksCount = await countOpenPastWeeks(org.id, scheme)
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -71,8 +79,74 @@ export default async function SettingsPage() {
           currentCurrency={org.currency}
           currentDateFormat={org.date_format}
           currentShowDecimals={org.show_decimals}
+          currentStandardDaysPerWeek={org.standard_days_per_week}
+          currentStandardHoursPerDay={org.standard_hours_per_day}
+          currentOvertimeRateMultiplier={org.overtime_rate_multiplier}
+          openPastWeeksCount={openPastWeeksCount}
         />
       </div>
     </div>
   )
+}
+
+// Weeks before the current one that still have real (entries/payments/
+// attendance) data but were never finalized — either never finalized at
+// all, or explicitly reopened (status='draft') and not yet re-finalized.
+// Changing Week Start Day never touches or loses this data, but it does
+// change which "week" a date is grouped into going forward, so a week like
+// this stops showing up via the Weekly Slips ‹ › navigation afterward (you'd
+// need Find weekly slip records to open it again) — worth flagging before
+// the org owner switches.
+async function countOpenPastWeeks(organizationId: string, scheme: WeekScheme) {
+  const supabase = await createClient()
+  const cutoff = currentWeekBounds(scheme).weekStart
+
+  const [{ data: draftSlips }, { data: finalizedSlips }, { data: entryRows }, { data: paymentRows }, { data: attendanceRows }] =
+    await Promise.all([
+      supabase
+        .from('weekly_slips')
+        .select('worker_id, week_start')
+        .eq('organization_id', organizationId)
+        .eq('status', 'draft'),
+      supabase
+        .from('weekly_slips')
+        .select('worker_id, week_start')
+        .eq('organization_id', organizationId)
+        .eq('status', 'finalized'),
+      supabase
+        .from('work_entries')
+        .select('worker_id, counted_week_start')
+        .eq('organization_id', organizationId)
+        .lt('counted_week_start', cutoff),
+      supabase
+        .from('payments')
+        .select('worker_id, counted_week_start')
+        .eq('organization_id', organizationId)
+        .lt('counted_week_start', cutoff),
+      supabase
+        .from('attendance')
+        .select('worker_id, attendance_date')
+        .eq('organization_id', organizationId)
+        .lt('attendance_date', cutoff),
+    ])
+
+  const finalizedKeys = new Set((finalizedSlips ?? []).map((s) => `${s.worker_id}|${s.week_start}`))
+  const openWeekKeys = new Set<string>()
+
+  for (const row of draftSlips ?? []) openWeekKeys.add(`${row.worker_id}|${row.week_start}`)
+  for (const row of entryRows ?? []) {
+    const key = `${row.worker_id}|${row.counted_week_start}`
+    if (!finalizedKeys.has(key)) openWeekKeys.add(key)
+  }
+  for (const row of paymentRows ?? []) {
+    const key = `${row.worker_id}|${row.counted_week_start}`
+    if (!finalizedKeys.has(key)) openWeekKeys.add(key)
+  }
+  for (const row of attendanceRows ?? []) {
+    const weekStart = resolveWeekBounds(row.attendance_date, scheme).weekStart
+    const key = `${row.worker_id}|${weekStart}`
+    if (!finalizedKeys.has(key)) openWeekKeys.add(key)
+  }
+
+  return openWeekKeys.size
 }

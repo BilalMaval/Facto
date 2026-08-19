@@ -55,6 +55,10 @@ export default async function WorkCodesPage({
         q={q}
         searchPlaceholder="Search by code or description…"
         selects={[{ name: 'status', label: 'Status', value: status, options: STATUS_OPTIONS }]}
+        suggestions={(allWorkCodes ?? []).map((wc) => ({
+          value: wc.code,
+          label: `${wc.code} — ${wc.description}` + (wc.is_active ? '' : ' (inactive)'),
+        }))}
       />
 
       <div className="mt-6">

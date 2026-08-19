@@ -4,7 +4,7 @@ import { getCurrentMembership } from '@/lib/session'
 import { getOwnerTier } from '@/lib/ownerPlan'
 import { createClient } from '@/lib/supabase/server'
 import { computeProratedUpgrade } from '@/lib/billing'
-import type { DateFormat } from '@/lib/dates'
+import { formatDate, type DateFormat } from '@/lib/dates'
 import { PaymentForm } from '../../../billing/PaymentForm'
 
 const SUBMISSION_STATUS_STYLES: Record<string, string> = {
@@ -132,7 +132,9 @@ export default async function UpgradePage() {
               <tbody>
                 {submissions.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
-                    <td className="px-4 py-3 text-zinc-600">{s.payment_date}</td>
+                    <td className="px-4 py-3 text-zinc-600">
+                      {formatDate(s.payment_date, org.date_format as DateFormat)}
+                    </td>
                     <td className="px-4 py-3 text-zinc-600">{s.method.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-zinc-600">{s.transaction_reference}</td>
                     <td className="px-4 py-3 text-right text-zinc-600">{Number(s.amount).toFixed(2)}</td>

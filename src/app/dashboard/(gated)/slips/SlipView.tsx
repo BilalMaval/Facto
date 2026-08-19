@@ -1,4 +1,15 @@
-import { addDays, dayAbbr, formatDate, type DateFormat } from '@/lib/dates'
+import {
+  addDays,
+  dayAbbr,
+  daySpan,
+  formatDate,
+  nextAnchorOnOrAfter,
+  resolveWeekBounds,
+  today as todayStr,
+  type DateFormat,
+  type WeekScheme,
+  type WeekStartDay,
+} from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
 import { createClient } from '@/lib/supabase/server'
@@ -6,6 +17,7 @@ import { reopenSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
 import { PrintButton } from './PrintButton'
 import { FinalizeSection } from './FinalizeSection'
+import { AttendanceGrid } from './AttendanceGrid'
 
 type LineRow = {
   date: string
@@ -25,10 +37,17 @@ export async function SlipView({
   orgName,
   workerId,
   weekStart,
+  weekStartDay,
+  previousWeekStartDay,
+  transitionDate,
   canFinalize,
+  viewerRole,
   currency,
   dateFormat,
   showDecimals,
+  standardDaysPerWeek,
+  standardHoursPerDay,
+  overtimeRateMultiplier,
   embedded = false,
   heading,
 }: {
@@ -36,14 +55,21 @@ export async function SlipView({
   orgName: string
   workerId: string
   weekStart: string
+  weekStartDay: WeekStartDay
+  previousWeekStartDay: WeekStartDay | null
+  transitionDate: string | null
   canFinalize: boolean
+  viewerRole: 'owner' | 'admin' | 'staff'
   currency: string
   dateFormat: DateFormat
   showDecimals: boolean
+  standardDaysPerWeek: number
+  standardHoursPerDay: number
+  overtimeRateMultiplier: number
   embedded?: boolean
   heading?: string
 }) {
-  const weekEnd = addDays(weekStart, 6)
+  const scheme: WeekScheme = { weekStartDay, previousWeekStartDay, transitionDate }
   const supabase = await createClient()
 
   const { data: worker } = await supabase
@@ -67,11 +93,17 @@ export async function SlipView({
 
   const { data: slip } = await supabase
     .from('weekly_slips')
-    .select('id, status, work_amount, paid_amount, advance_delta, payable_balance, final_amount')
+    .select('id, status, week_end, work_amount, paid_amount, advance_delta, payable_balance, final_amount')
     .eq('organization_id', organizationId)
     .eq('worker_id', workerId)
     .eq('week_start', weekStart)
     .maybeSingle()
+
+  // An existing slip's own stored week_end is authoritative (it may be a
+  // short transition week, already fixed at finalize/first-save time) —
+  // only a week with no row yet needs its bounds computed fresh, aware of
+  // any pending Week Start Day transition (see lib/dates.ts).
+  const weekEnd = slip?.week_end ?? resolveWeekBounds(weekStart, scheme).weekEnd
 
   // Entries/payments COUNTED toward this week's totals — keyed by
   // counted_week_start, not their own date, so a backdated entry logged
@@ -92,6 +124,16 @@ export async function SlipView({
     .eq('worker_id', workerId)
     .eq('counted_week_start', weekStart)
     .order('payment_date')
+
+  // Attendance has no counted_week_start (see the migration for why) — it's
+  // always looked up by the plain calendar range of the week being viewed.
+  const { data: attendanceRows } = await supabase
+    .from('attendance')
+    .select('attendance_date, status, overtime_hours, overtime_wage, holiday_wage')
+    .eq('organization_id', organizationId)
+    .eq('worker_id', workerId)
+    .gte('attendance_date', weekStart)
+    .lte('attendance_date', weekEnd)
 
   const isFinalized = slip?.status === 'finalized'
 
@@ -125,17 +167,50 @@ export async function SlipView({
     : [{ data: [] }, { data: [] }]
 
   // What counts as "work" depends on how this worker is paid: contract
-  // workers are paid for entries logged, salary workers get a fixed weekly
-  // amount regardless of entries, hybrid workers get both combined into one
-  // payable pool. Payments always subtract from whichever pool this is —
-  // the rest of the settlement math (payable/advance/finalize) is unchanged.
+  // workers are paid for entries logged, salary/hybrid workers are paid an
+  // attendance-driven salary component (present/half-day/absent days at a
+  // per-day rate derived from weekly_salary, plus overtime on top) — or,
+  // if no attendance has been logged for this week at all, the flat
+  // weekly_salary as a fallback so an org that hasn't started using
+  // attendance tracking isn't silently paid nothing. In a full 7-day week,
+  // the last day (weekEnd) is the org's day off by default — it's excluded
+  // from the 6-day present/absent/half-day sum; if it was actually worked
+  // (marked present), its pay is a separately-entered flat holiday_wage
+  // rather than a fraction of weekly_salary, since it isn't one of the 6
+  // days that rate is derived from. A shortened week spanning a Week Start
+  // Day change never reaches that real day off (see resolveWeekBounds) —
+  // every day in it is a genuine working day, so none of that exclusion
+  // applies there; all its days count toward the regular sum instead.
+  // Mirrors finalize_weekly_slip() in the attendance_holiday_and_daily_edit
+  // and week_scheme_transition_holiday_fix migrations exactly.
   const liveEntriesAmount = (entries ?? []).reduce((sum, e) => sum + Number(e.amount), 0)
   const weeklySalary = worker.weekly_salary != null ? Number(worker.weekly_salary) : 0
+  const STATUS_DAY_VALUE: Record<string, number> = { present: 1, half_day: 0.5, absent: 0, holiday: 0 }
+  const perDayRate = standardDaysPerWeek > 0 ? weeklySalary / standardDaysPerWeek : 0
+  const overtimeHourlyRate = standardHoursPerDay > 0 ? (perDayRate / standardHoursPerDay) * overtimeRateMultiplier : 0
+  const hasDayOff = daySpan(weekStart, weekEnd) === 7
+  const daysSum = (attendanceRows ?? [])
+    .filter((a) => !hasDayOff || a.attendance_date !== weekEnd)
+    .reduce((sum, a) => sum + (STATUS_DAY_VALUE[a.status] ?? 0), 0)
+  // Overtime is either the usual hours x rate, or a flat amount typed
+  // directly for that day (overtime_wage set) overriding the hourly calc —
+  // see the overtime_wage migration.
+  const overtimeAmount = (attendanceRows ?? []).reduce(
+    (sum, a) => sum + (a.overtime_wage != null ? Number(a.overtime_wage) : Number(a.overtime_hours) * overtimeHourlyRate),
+    0
+  )
+  const holidayWage = hasDayOff
+    ? (attendanceRows ?? [])
+        .filter((a) => a.attendance_date === weekEnd && a.status === 'present')
+        .reduce((sum, a) => sum + Number(a.holiday_wage), 0)
+    : 0
+  const salaryComponent =
+    (attendanceRows ?? []).length === 0 ? weeklySalary : daysSum * perDayRate + overtimeAmount + holidayWage
   const liveWorkAmount =
     worker.employment_type === 'salary'
-      ? weeklySalary
+      ? salaryComponent
       : worker.employment_type === 'hybrid'
-        ? liveEntriesAmount + weeklySalary
+        ? liveEntriesAmount + salaryComponent
         : liveEntriesAmount
   const livePaidAmount = (payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
 
@@ -149,11 +224,21 @@ export async function SlipView({
   const finalAmount = isFinalized ? Number(slip!.final_amount) : null
   // positive = overpay (advance grows), negative = shortfall (advance shrinks)
   const delta = isFinalized ? Number(slip!.advance_delta) : null
-  const defaultFinalAmount = slip?.final_amount != null ? Number(slip.final_amount) : payable
 
   const paymentsByDate = new Map<string, number>()
   for (const p of payments ?? []) {
     paymentsByDate.set(p.payment_date, (paymentsByDate.get(p.payment_date) ?? 0) + Number(p.amount))
+  }
+
+  // These are otherwise ordinary rows counted toward this week — but their
+  // own date can still fall outside [weekStart, weekEnd] when it was
+  // redirected here from an earlier, already-finalized week (see
+  // resolveCountedWeekStart). Flagging that here — on the destination side —
+  // matches the note the ORIGIN week already shows for the same entry, so
+  // it's clear from either side why it's counted where it is.
+  function redirectNote(dateStr: string): string | undefined {
+    if (dateStr >= weekStart && dateStr <= weekEnd) return undefined
+    return 'Dated in an earlier week that was already finalized when this was logged — counted here instead.'
   }
 
   const shownPaidDates = new Set<string>()
@@ -169,12 +254,21 @@ export async function SlipView({
       rate: Number(e.rate_snapshot),
       amount: Number(e.amount),
       paidAmount: alreadyShown ? null : paidForDate,
+      note: redirectNote(e.entry_date),
     }
   })
 
   for (const [date, total] of paymentsByDate) {
     if (!(entries ?? []).some((e) => e.entry_date === date)) {
-      rows.push({ date, description: '—', quantity: null, rate: null, amount: null, paidAmount: total })
+      rows.push({
+        date,
+        description: '—',
+        quantity: null,
+        rate: null,
+        amount: null,
+        paidAmount: total,
+        note: redirectNote(date),
+      })
     }
   }
 
@@ -204,37 +298,93 @@ export async function SlipView({
 
   rows.sort((a, b) => a.date.localeCompare(b.date))
 
+  // Finalize/reopen should land back on wherever they were submitted from —
+  // the Dashboard's embedded view has no weekStart param of its own (it only
+  // shows the current week), so redirecting it to /dashboard/slips would
+  // silently switch tabs on the user.
+  const returnTo = embedded ? '/dashboard' : '/dashboard/slips'
+
+  // A week around a Week Start Day change is one of two kinds, each needing
+  // its own small notice so the shorter-than-usual span isn't a silent
+  // mystery later: the old week — the one that was actually running when
+  // the switch happened — cut short right before the new scheme's first
+  // clean anchor day, or that first full week itself. See lib/dates.ts for
+  // how these boundaries are derived; nextAnchorOnOrAfter is what lets the
+  // new scheme start the very same day when the switch date already
+  // happens to be its anchor day, instead of always waiting a week.
+  //
+  // isTruncatedOldWeek deliberately checks the week's OWN span (< 7 days)
+  // rather than matching it against the org's CURRENT transition record —
+  // a week only ever gets cut short by a transition, so a short span is
+  // sufficient on its own, and staying self-contained like this means an
+  // already-finalized short week keeps displaying correctly (full stored
+  // weekEnd, no day hidden) even after a LATER transition has since
+  // overwritten the single most-recent transition record it was originally
+  // truncated by. Matching against the current record only would silently
+  // go stale in that case — a real bug an earlier version of this check had.
+  const isTruncatedOldWeek = daySpan(weekStart, weekEnd) < 7
+  const isFirstCleanWeek =
+    transitionDate != null && weekStart === nextAnchorOnOrAfter(transitionDate, weekStartDay)
+
+  // Displayed range ends at the last WORKING day — normally that's the day
+  // before weekEnd, since weekEnd is always the day off. A truncated old
+  // week is the one exception: it's cut short by the scheme change itself,
+  // before ever reaching its real day off, so every day in it — including
+  // the very last one — is still a genuine working day; nothing to hide.
+  const displayWeekEnd = isTruncatedOldWeek ? weekEnd : addDays(weekEnd, -1)
+  const transitionNotice = isTruncatedOldWeek
+    ? `Cut short by a Week Start Day change on ${formatDate(transitionDate!, dateFormat)}.`
+    : isFirstCleanWeek
+      ? `First full week after the Week Start Day change on ${formatDate(transitionDate!, dateFormat)}.`
+      : null
+
+  const weekTypeLabel = dayAbbr(weekStart) === 'Sat' ? 'Sat-Thu' : 'Mon-Sat'
+
   return (
     <div className={embedded ? '' : 'mt-8'}>
-      <div className={`flex flex-wrap items-center justify-between gap-3 print:hidden ${embedded ? 'mt-3' : ''}`}>
-        <div className="flex flex-wrap items-center gap-3">
-          {heading && <h2 className="text-sm font-semibold text-zinc-700">{heading}</h2>}
+      <div className={`print:hidden ${embedded ? 'mt-3' : ''}`}>
+        <div className="flex items-center justify-between gap-3">
+          <div>{heading && <h2 className="text-sm font-semibold text-zinc-700">{heading}</h2>}</div>
+          <div className="flex shrink-0 gap-3">
+            <PrintButton />
+            {canFinalize && isFinalized && slip && (
+              <form action={reopenSlip}>
+                <input type="hidden" name="slipId" value={slip.id} />
+                <input type="hidden" name="workerId" value={workerId} />
+                <input type="hidden" name="weekStart" value={weekStart} />
+                <input type="hidden" name="returnTo" value={returnTo} />
+                <ConfirmButton
+                  confirmText="Reopen this week? This reverses the advance balance change and unlocks entries and payments for editing."
+                  className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50"
+                >
+                  Reopen week
+                </ConfirmButton>
+              </form>
+            )}
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          {/* The Dashboard's embedded view only ever shows the current week
+              (there's no week navigation here) — a plain badge is enough,
+              unlike the Weekly Slips tab's Current Week button, which needs
+              to say whether the week you've navigated to happens to match. */}
+          {embedded && (
+            <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+              Current week
+            </span>
+          )}
           <p className="text-sm text-zinc-500">
-            Week: {formatDate(weekStart, dateFormat)} to {formatDate(weekEnd, dateFormat)} ·{' '}
+            Week: {formatDate(weekStart, dateFormat)} to {formatDate(displayWeekEnd, dateFormat)} (
+            {weekTypeLabel}) ·{' '}
             <span className={isFinalized ? 'font-medium text-emerald-700' : 'font-medium text-amber-700'}>
               {isFinalized ? 'Finalized' : 'Draft'}
             </span>
           </p>
         </div>
-        <div className="flex gap-3">
-          <PrintButton />
-          {canFinalize && isFinalized && slip && (
-            <form action={reopenSlip}>
-              <input type="hidden" name="slipId" value={slip.id} />
-              <input type="hidden" name="workerId" value={workerId} />
-              <input type="hidden" name="weekStart" value={weekStart} />
-              <ConfirmButton
-                confirmText="Reopen this week? This reverses the advance balance change and unlocks entries and payments for editing."
-                className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50"
-              >
-                Reopen week
-              </ConfirmButton>
-            </form>
-          )}
-        </div>
       </div>
 
       <div
+        id="printable-slip"
         className={
           embedded
             ? 'mt-3'
@@ -245,8 +395,16 @@ export async function SlipView({
           <h2 className="text-lg font-semibold">{orgName}</h2>
           <p className="text-sm text-zinc-500">Worker Salary Slip</p>
           <p className="text-xs text-zinc-400">
-            {formatDate(weekStart, dateFormat)} to {formatDate(weekEnd, dateFormat)}
+            {formatDate(weekStart, dateFormat)} to {formatDate(displayWeekEnd, dateFormat)} ({weekTypeLabel})
           </p>
+          {/* Screen already shows this in the print:hidden status bar above
+              — only needs a print-specific copy so it isn't lost on paper. */}
+          <p
+            className={`hidden text-xs font-medium print:block ${isFinalized ? 'text-emerald-700' : 'text-amber-700'}`}
+          >
+            {isFinalized ? 'Finalized' : 'Draft'}
+          </p>
+          {transitionNotice && <p className="mt-1 text-[11px] text-sky-700">{transitionNotice}</p>}
         </div>
 
         <div className="mt-6 flex flex-wrap gap-6">
@@ -268,6 +426,27 @@ export async function SlipView({
             <InfoRow label="Total Advance" value={formatMoney(worker.advance_balance, currency, showDecimals)} />
           </dl>
         </div>
+
+        {worker.employment_type !== 'contract' && (
+          <AttendanceGrid
+            key={`${workerId}-${weekStart}`}
+            organizationId={organizationId}
+            workerId={workerId}
+            weekStart={weekStart}
+            weekEnd={weekEnd}
+            dateFormat={dateFormat}
+            existingRows={attendanceRows ?? []}
+            weeklySalary={weeklySalary}
+            standardDaysPerWeek={standardDaysPerWeek}
+            standardHoursPerDay={standardHoursPerDay}
+            overtimeRateMultiplier={overtimeRateMultiplier}
+            currency={currency}
+            showDecimals={showDecimals}
+            weekFinalized={isFinalized}
+            today={todayStr()}
+            canEditPastDays={viewerRole === 'owner'}
+          />
+        )}
 
         <div className="mt-6 overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm">
@@ -353,22 +532,30 @@ export async function SlipView({
                 showDecimals={showDecimals}
               />
             </>
-          ) : !isFinalized && canFinalize ? (
-            <div className="pt-2 print:hidden">
-              <FinalizeSection
-                organizationId={organizationId}
-                workerId={workerId}
-                weekStart={weekStart}
-                weekEnd={weekEnd}
-                payable={payable}
-                currentAdvanceBalance={currentAdvanceBalance}
-                defaultFinalAmount={defaultFinalAmount}
-                currency={currency}
-                showDecimals={showDecimals}
-              />
-            </div>
           ) : !isFinalized ? (
-            <p className="pt-2 text-xs text-zinc-400">Pending finalization by an admin or owner.</p>
+            <>
+              {canFinalize && (
+                <div className="pt-2 print:hidden">
+                  <FinalizeSection
+                    organizationId={organizationId}
+                    workerId={workerId}
+                    weekStart={weekStart}
+                    weekEnd={weekEnd}
+                    returnTo={returnTo}
+                    payable={payable}
+                    currentAdvanceBalance={currentAdvanceBalance}
+                    currency={currency}
+                    showDecimals={showDecimals}
+                  />
+                </div>
+              )}
+              {/* On screen, an admin/owner sees the form above instead; a
+                  printed page always needs this line since the form itself
+                  never prints. */}
+              <p className={`pt-2 text-xs text-zinc-400 ${canFinalize ? 'hidden print:block' : ''}`}>
+                Pending finalization by an admin or owner.
+              </p>
+            </>
           ) : null}
         </div>
 

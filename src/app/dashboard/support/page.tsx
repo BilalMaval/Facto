@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { countUnreadByTicket } from '@/lib/support'
+import { formatDate, type DateFormat } from '@/lib/dates'
 import { NewTicketForm } from './NewTicketForm'
 
 const STATUS_STYLES: Record<string, string> = {
@@ -18,6 +19,7 @@ export default async function SupportPage() {
   if (!membership) redirect('/onboarding')
   if (membership.role !== 'owner') redirect('/dashboard')
 
+  const dateFormat = membership.organization.date_format as DateFormat
   const supabase = await createClient()
   const { data: tickets } = await supabase
     .from('support_tickets')
@@ -61,7 +63,9 @@ export default async function SupportPage() {
               <div className="flex items-center gap-2">
                 <div>
                   <p className="text-sm font-medium text-zinc-900">{t.subject}</p>
-                  <p className="text-xs text-zinc-400">Updated {t.updated_at?.slice(0, 10)}</p>
+                  <p className="text-xs text-zinc-400">
+                    Updated {t.updated_at ? formatDate(t.updated_at.slice(0, 10), dateFormat) : '—'}
+                  </p>
                 </div>
                 {(unreadByTicket.get(t.id) ?? 0) > 0 && (
                   <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">

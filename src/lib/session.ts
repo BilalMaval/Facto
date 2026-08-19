@@ -8,10 +8,15 @@ type Organization = {
   id: string
   name: string
   week_start_day: 'monday' | 'saturday'
+  week_scheme_previous_start_day: 'monday' | 'saturday' | null
+  week_scheme_transition_date: string | null
   timezone: string
   currency: string
   date_format: string
   show_decimals: boolean
+  standard_days_per_week: number
+  standard_hours_per_day: number
+  overtime_rate_multiplier: number
   subscription_status: string
   trial_ends_at: string | null
   subscribed_at: string | null
@@ -35,7 +40,7 @@ export const getCurrentMembership = cache(async function getCurrentMembership() 
   const { data: rows } = await supabase
     .from('memberships')
     .select(
-      'role, organization:organizations(id, name, week_start_day, timezone, currency, date_format, show_decimals, subscription_status, trial_ends_at, subscribed_at, paid_until, suspension_note, monthly_fee, hidden_nav_tabs)'
+      'role, organization:organizations(id, name, week_start_day, week_scheme_previous_start_day, week_scheme_transition_date, timezone, currency, date_format, show_decimals, standard_days_per_week, standard_hours_per_day, overtime_rate_multiplier, subscription_status, trial_ends_at, subscribed_at, paid_until, suspension_note, monthly_fee, hidden_nav_tabs)'
     )
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })

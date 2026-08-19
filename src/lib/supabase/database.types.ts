@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance: {
+        Row: {
+          attendance_date: string
+          created_at: string
+          created_by: string
+          holiday_wage: number
+          id: string
+          organization_id: string
+          overtime_hours: number
+          overtime_wage: number | null
+          status: string
+          worker_id: string
+        }
+        Insert: {
+          attendance_date: string
+          created_at?: string
+          created_by: string
+          holiday_wage?: number
+          id?: string
+          organization_id: string
+          overtime_hours?: number
+          overtime_wage?: number | null
+          status: string
+          worker_id: string
+        }
+        Update: {
+          attendance_date?: string
+          created_at?: string
+          created_by?: string
+          holiday_wage?: number
+          id?: string
+          organization_id?: string
+          overtime_hours?: number
+          overtime_wage?: number | null
+          status?: string
+          worker_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_worker_id_fkey"
+            columns: ["worker_id"]
+            isOneToOne: false
+            referencedRelation: "workers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string
@@ -100,13 +154,18 @@ export type Database = {
           id: string
           monthly_fee: number | null
           name: string
+          overtime_rate_multiplier: number
           paid_until: string | null
           show_decimals: boolean
+          standard_days_per_week: number
+          standard_hours_per_day: number
           subscribed_at: string | null
           subscription_status: string
           suspension_note: string | null
           timezone: string
           trial_ends_at: string | null
+          week_scheme_previous_start_day: string | null
+          week_scheme_transition_date: string | null
           week_start_day: string
         }
         Insert: {
@@ -118,13 +177,18 @@ export type Database = {
           id?: string
           monthly_fee?: number | null
           name: string
+          overtime_rate_multiplier?: number
           paid_until?: string | null
           show_decimals?: boolean
+          standard_days_per_week?: number
+          standard_hours_per_day?: number
           subscribed_at?: string | null
           subscription_status?: string
           suspension_note?: string | null
           timezone?: string
           trial_ends_at?: string | null
+          week_scheme_previous_start_day?: string | null
+          week_scheme_transition_date?: string | null
           week_start_day?: string
         }
         Update: {
@@ -136,13 +200,18 @@ export type Database = {
           id?: string
           monthly_fee?: number | null
           name?: string
+          overtime_rate_multiplier?: number
           paid_until?: string | null
           show_decimals?: boolean
+          standard_days_per_week?: number
+          standard_hours_per_day?: number
           subscribed_at?: string | null
           subscription_status?: string
           suspension_note?: string | null
           timezone?: string
           trial_ends_at?: string | null
+          week_scheme_previous_start_day?: string | null
+          week_scheme_transition_date?: string | null
           week_start_day?: string
         }
         Relationships: []

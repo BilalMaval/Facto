@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getBillingState, deriveOrgPlan } from '@/lib/billing'
-import type { DateFormat } from '@/lib/dates'
+import { formatDate, type DateFormat } from '@/lib/dates'
 import { BillingForm } from './BillingForm'
 import { BillingCycleForm } from './BillingCycleForm'
 import { VisibleTabsForm } from './VisibleTabsForm'
@@ -37,6 +37,7 @@ export default async function AdminOrganizationPage({
   if (!org) notFound()
 
   const billing = getBillingState(org)
+  const dateFormat = org.date_format as DateFormat
 
   const { data: members } = await supabase
     .from('memberships')
@@ -71,7 +72,7 @@ export default async function AdminOrganizationPage({
 
       <h1 className="mt-4 text-2xl font-semibold tracking-tight">{org.name}</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        Created {org.created_at?.slice(0, 10)} · Week type:{' '}
+        Created {org.created_at ? formatDate(org.created_at.slice(0, 10), dateFormat) : '—'} · Week type:{' '}
         {org.week_start_day === 'saturday' ? 'Saturday – Thursday' : 'Monday – Saturday'}
       </p>
 
@@ -98,8 +99,12 @@ export default async function AdminOrganizationPage({
               Manually {org.subscription_status === 'suspended' ? 'suspended' : 'cancelled'} by admin
             </p>
           )}
-          {billing.nextDueDate && <p className="text-zinc-500">Next due {billing.nextDueDate}</p>}
-          {billing.graceEndsAt && <p className="text-zinc-500">Grace ends {billing.graceEndsAt}</p>}
+          {billing.nextDueDate && (
+            <p className="text-zinc-500">Next due {formatDate(billing.nextDueDate, dateFormat)}</p>
+          )}
+          {billing.graceEndsAt && (
+            <p className="text-zinc-500">Grace ends {formatDate(billing.graceEndsAt, dateFormat)}</p>
+          )}
         </div>
       </div>
 

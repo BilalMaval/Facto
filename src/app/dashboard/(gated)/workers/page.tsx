@@ -3,6 +3,7 @@ import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { AdminFilterBar } from '@/app/admin/AdminFilterBar'
 import type { DateFormat } from '@/lib/dates'
+import { workerLabel } from '@/lib/format'
 import { WorkerForm } from './WorkerForm'
 import { WorkerRow, type EmploymentType } from './WorkerRow'
 
@@ -79,6 +80,10 @@ export default async function WorkersPage({
           { name: 'employmentType', label: 'Payment type', value: employmentType, options: EMPLOYMENT_TYPE_OPTIONS },
           { name: 'status', label: 'Status', value: status, options: STATUS_OPTIONS },
         ]}
+        suggestions={(allWorkers ?? []).map((w) => ({
+          value: w.name,
+          label: workerLabel(w) + (w.is_active ? '' : ' (inactive)'),
+        }))}
       />
 
       <div className="mt-6">

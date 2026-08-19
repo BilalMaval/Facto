@@ -2,7 +2,16 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
-import { addDays, currentWeekStart, formatDate, formatTime, today as todayStr, type DateFormat } from '@/lib/dates'
+import {
+  addDays,
+  currentWeekBounds,
+  formatDate,
+  formatTime,
+  today as todayStr,
+  type DateFormat,
+  type WeekScheme,
+  type WeekStartDay,
+} from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, workerLabel } from '@/lib/format'
 import { EntryForm } from './entries/EntryForm'
@@ -35,8 +44,12 @@ export default async function DashboardPage({
 
   const org = membership.organization
   const canFinalize = membership.role === 'owner' || membership.role === 'admin'
-  const weekStart = currentWeekStart(org.week_start_day)
-  const weekEnd = addDays(weekStart, 6)
+  const scheme: WeekScheme = {
+    weekStartDay: org.week_start_day as WeekStartDay,
+    previousWeekStartDay: org.week_scheme_previous_start_day as WeekStartDay | null,
+    transitionDate: org.week_scheme_transition_date,
+  }
+  const { weekStart, weekEnd } = currentWeekBounds(scheme)
   const today = todayStr()
 
   const supabase = await createClient()
@@ -51,7 +64,7 @@ export default async function DashboardPage({
   ] = await Promise.all([
     supabase
       .from('workers')
-      .select('id, worker_code, name, is_active')
+      .select('id, worker_code, name, is_active, employment_type')
       .eq('organization_id', org.id)
       .eq('is_active', true)
       .order('worker_code'),
@@ -116,7 +129,7 @@ export default async function DashboardPage({
               Log work &amp; payments — {workerLabel(selectedWorker)}
             </h2>
             <div className="mt-3 space-y-3">
-              {workCodes?.length ? (
+              {selectedWorker.employment_type === 'salary' ? null : workCodes?.length ? (
                 <EntryForm
                   organizationId={org.id}
                   today={today}
@@ -154,10 +167,17 @@ export default async function DashboardPage({
               orgName={org.name}
               workerId={selectedWorker.id}
               weekStart={weekStart}
+              weekStartDay={scheme.weekStartDay}
+              previousWeekStartDay={scheme.previousWeekStartDay}
+              transitionDate={scheme.transitionDate}
               canFinalize={canFinalize}
+              viewerRole={membership.role as 'owner' | 'admin' | 'staff'}
               currency={org.currency}
               dateFormat={org.date_format as DateFormat}
               showDecimals={org.show_decimals}
+              standardDaysPerWeek={org.standard_days_per_week}
+              standardHoursPerDay={org.standard_hours_per_day}
+              overtimeRateMultiplier={org.overtime_rate_multiplier}
               embedded
               heading="This week's report"
             />

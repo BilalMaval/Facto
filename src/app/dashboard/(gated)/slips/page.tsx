@@ -3,7 +3,16 @@ import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
-import { addDays, currentWeekStart, formatDate, today as todayStr, weekStartOf, type DateFormat } from '@/lib/dates'
+import {
+  addDays,
+  currentWeekBounds,
+  formatDate,
+  resolveWeekBounds,
+  today as todayStr,
+  type DateFormat,
+  type WeekScheme,
+  type WeekStartDay,
+} from '@/lib/dates'
 import { one } from '@/lib/one'
 import { periodRange, periodLabel, type Period } from '@/lib/period'
 import { formatNumber, workerLabel } from '@/lib/format'
@@ -53,14 +62,24 @@ export default async function SlipsPage({
   const workerId = workerIdParam || cookieStore.get('slips_worker_id')?.value
   const weekStartCookie = cookieStore.get('slips_week_start')?.value
 
-  // Whatever date the user picks in "Week starting" (or an arbitrary URL
-  // param) always snaps to the actual start of the week that date falls
-  // in, per this org's week_start_day — not used as a literal boundary.
-  const weekStart = weekStartParam
-    ? weekStartOf(weekStartParam, org.week_start_day)
-    : weekStartCookie
-      ? weekStartOf(weekStartCookie, org.week_start_day)
-      : currentWeekStart(org.week_start_day)
+  // A weekStart reaching this page (URL param, remembered cookie, or a
+  // record's own "View" link) is always already a canonical week_start —
+  // never re-derived here. Re-snapping it under the org's CURRENT
+  // week_start_day would silently redirect old weeks to the wrong week
+  // whenever that setting has ever been changed (e.g. Sat-Thu -> Mon-Sat),
+  // since a week_start from before the change won't land on the new
+  // scheme's anchor day. Snapping an arbitrary picked date to its week only
+  // happens once, client-side in SlipSelector, at the moment it's picked.
+  const scheme: WeekScheme = {
+    weekStartDay: org.week_start_day as WeekStartDay,
+    previousWeekStartDay: org.week_scheme_previous_start_day as WeekStartDay | null,
+    transitionDate: org.week_scheme_transition_date,
+  }
+  const weekStart = weekStartParam || weekStartCookie || currentWeekBounds(scheme).weekStart
+  // Only used to compute the prev/next nav targets below — SlipView derives
+  // its own weekEnd authoritatively (an existing slip's stored value takes
+  // priority over this fresh computation).
+  const weekEnd = resolveWeekBounds(weekStart, scheme).weekEnd
 
   const supabase = await createClient()
   const { data: workers } = await supabase
@@ -94,13 +113,18 @@ export default async function SlipsPage({
         workers={workers ?? []}
         workerId={workerId}
         weekStart={weekStart}
+        weekEnd={weekEnd}
+        currentWeekStart={currentWeekBounds(scheme).weekStart}
+        weekStartDay={scheme.weekStartDay}
+        previousWeekStartDay={scheme.previousWeekStartDay}
+        transitionDate={scheme.transitionDate}
         dateFormat={org.date_format as DateFormat}
       />
 
       {workerId ? (
         <div className="relative">
           <Link
-            href={`/dashboard/slips?workerId=${workerId}&weekStart=${addDays(weekStart, -7)}`}
+            href={`/dashboard/slips?workerId=${workerId}&weekStart=${resolveWeekBounds(addDays(weekStart, -1), scheme).weekStart}`}
             aria-label="Previous week"
             scroll={false}
             className="absolute -left-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
@@ -108,7 +132,7 @@ export default async function SlipsPage({
             ‹
           </Link>
           <Link
-            href={`/dashboard/slips?workerId=${workerId}&weekStart=${addDays(weekStart, 7)}`}
+            href={`/dashboard/slips?workerId=${workerId}&weekStart=${resolveWeekBounds(addDays(weekEnd, 1), scheme).weekStart}`}
             aria-label="Next week"
             scroll={false}
             className="absolute -right-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
@@ -120,10 +144,17 @@ export default async function SlipsPage({
             orgName={org.name}
             workerId={workerId}
             weekStart={weekStart}
+            weekStartDay={scheme.weekStartDay}
+            previousWeekStartDay={scheme.previousWeekStartDay}
+            transitionDate={scheme.transitionDate}
             canFinalize={canFinalize}
+            viewerRole={membership.role as 'owner' | 'admin' | 'staff'}
             currency={org.currency}
             dateFormat={org.date_format as DateFormat}
             showDecimals={org.show_decimals}
+            standardDaysPerWeek={org.standard_days_per_week}
+            standardHoursPerDay={org.standard_hours_per_day}
+            overtimeRateMultiplier={org.overtime_rate_multiplier}
           />
         </div>
       ) : (
@@ -193,7 +224,7 @@ async function SlipRecordsBrowser({
   return (
     <div className="mt-4">
       <p className="text-xs text-zinc-400">
-        Showing weeks overlapping {periodLabel(period, range)}.
+        Showing weeks overlapping {periodLabel(period, range, dateFormat)}.
       </p>
       {!records?.length && <p className="mt-2 text-sm text-zinc-400">No weekly slip records found.</p>}
       <ul className="mt-2 divide-y divide-zinc-200">

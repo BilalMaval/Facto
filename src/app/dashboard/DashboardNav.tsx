@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { WEEK_SCHEME_LABEL, type WeekStartDay } from '@/lib/dates'
 import { signOut } from './actions'
 import { OrgSwitcher } from './OrgSwitcher'
 
@@ -32,6 +33,7 @@ export function DashboardNav({
   memberships,
   activeOrgId,
   supportBadgeCount = 0,
+  weekStartDay,
 }: {
   orgName: string
   role: string
@@ -40,6 +42,7 @@ export function DashboardNav({
   memberships: Membership[]
   activeOrgId: string
   supportBadgeCount?: number
+  weekStartDay: WeekStartDay
 }) {
   const pathname = usePathname()
   const isAdmin = role === 'owner' || role === 'admin'
@@ -76,11 +79,24 @@ export function DashboardNav({
     <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white/95 backdrop-blur print:hidden">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 pt-4">
         <div>
-          {memberships.length > 1 ? (
-            <OrgSwitcher memberships={memberships} activeOrgId={activeOrgId} />
-          ) : (
-            <p className="text-sm font-semibold text-zinc-900">{orgName}</p>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {memberships.length > 1 ? (
+              <OrgSwitcher memberships={memberships} activeOrgId={activeOrgId} />
+            ) : (
+              <p className="text-sm font-semibold text-zinc-900">{orgName}</p>
+            )}
+            {/* The org's CURRENT weekly pay period — always this org's live
+                setting, unlike a specific slip's own (Mon-Sat)/(Sat-Thu)
+                label (SlipView.tsx), which reflects whatever scheme was
+                active when THAT week was computed and can still show the
+                org's past scheme long after it's been changed. */}
+            <span
+              title="Current weekly pay period"
+              className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
+            >
+              {WEEK_SCHEME_LABEL[weekStartDay]}
+            </span>
+          </div>
           <p className="mt-0.5 text-xs text-zinc-500">
             {userEmail} · {role}
           </p>

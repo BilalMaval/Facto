@@ -57,7 +57,7 @@ export default async function EntriesPage({
   const [{ data: allWorkers }, { data: workCodes }] = await Promise.all([
     supabase
       .from('workers')
-      .select('id, worker_code, name, is_active')
+      .select('id, worker_code, name, is_active, employment_type')
       .eq('organization_id', org.id)
       .order('worker_code'),
     supabase
@@ -69,6 +69,10 @@ export default async function EntriesPage({
   ])
 
   const activeWorkers = (allWorkers ?? []).filter((w) => w.is_active)
+  // Quantity-based entries are a no-op for pure-salary workers (their pay
+  // comes from Attendance instead), so they're excluded from the entry form
+  // — they still get payments logged via PaymentForm below.
+  const entryWorkers = activeWorkers.filter((w) => w.employment_type !== 'salary')
 
   let entriesQuery = supabase
     .from('work_entries')
@@ -92,7 +96,7 @@ export default async function EntriesPage({
 
   const [{ data: entries }, { data: payments }] = await Promise.all([entriesQuery, paymentsQuery])
 
-  const rangeLabel = periodLabel(period, range)
+  const rangeLabel = periodLabel(period, range, org.date_format as DateFormat)
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10">
@@ -103,9 +107,9 @@ export default async function EntriesPage({
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
       )}
 
-      {!activeWorkers.length || !workCodes?.length ? (
+      {!entryWorkers.length || !workCodes?.length ? (
         <p className="mt-6 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
-          {!activeWorkers.length && 'Add at least one active worker. '}
+          {!entryWorkers.length && 'Add at least one active contract or hybrid worker. '}
           {!workCodes?.length && 'Add at least one active work code. '}
           Then come back here to log entries.
         </p>
@@ -114,7 +118,7 @@ export default async function EntriesPage({
           <EntryForm
             organizationId={org.id}
             today={today}
-            workers={activeWorkers}
+            workers={entryWorkers}
             workCodes={workCodes}
             dateFormat={org.date_format as DateFormat}
           />

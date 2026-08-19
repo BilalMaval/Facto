@@ -1,4 +1,4 @@
-import { addDays, weekStartOf, type WeekStartDay } from './dates'
+import { addDays, formatDate, weekStartOf, type DateFormat, type WeekStartDay } from './dates'
 
 export type Period = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom'
 
@@ -38,8 +38,9 @@ export function periodRange(
 
 export function periodLabel(
   period: Period,
-  range: { start: string; end: string }
+  range: { start: string; end: string },
+  dateFormat: DateFormat
 ): string {
-  if (range.start === range.end) return range.start
-  return `${range.start} to ${range.end}`
+  if (range.start === range.end) return formatDate(range.start, dateFormat)
+  return `${formatDate(range.start, dateFormat)} to ${formatDate(range.end, dateFormat)}`
 }

@@ -3,15 +3,22 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { currentWeekStart, weekStartOf, type WeekStartDay } from '@/lib/dates'
+import { currentWeekBounds, resolveWeekBounds, type WeekScheme } from '@/lib/dates'
 
 export type FormState = { error?: string; success?: boolean } | null
 
-// Which week's slip a backdated entry/payment counts toward: normally the
-// week its own date falls in, unless that week was already finalized — a
-// finalized slip is a locked snapshot, so a late entry counts toward the
-// CURRENT week instead (it keeps its real date; only what it's tallied
-// against shifts). See SlipView.tsx for how this then surfaces to the user.
+// Which week's slip a backdated entry/payment counts toward.
+//
+// If a week already exists (any status) that owns this date — including a
+// week under a scheme the org has since moved away from — the entry counts
+// there, exactly as if nothing about the org's settings had ever changed:
+// finalized means it's a locked snapshot, so the entry shifts forward to
+// the current week instead (it keeps its real date; only what it's tallied
+// against moves); still-open (including reopened) means it counts directly
+// into that same week, under its own original scheme, forever.
+//
+// Only when no existing week claims this date does today's scheme (and any
+// pending transition — see lib/dates.ts) get to decide where it lands.
 async function resolveCountedWeekStart(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string,
@@ -20,12 +27,29 @@ async function resolveCountedWeekStart(
 ) {
   const { data: org } = await supabase
     .from('organizations')
-    .select('week_start_day')
+    .select('week_start_day, week_scheme_previous_start_day, week_scheme_transition_date')
     .eq('id', organizationId)
     .single()
-  const weekStartDay = (org?.week_start_day ?? 'monday') as WeekStartDay
-  const targetWeekStart = weekStartOf(dateStr, weekStartDay)
+  const scheme: WeekScheme = {
+    weekStartDay: (org?.week_start_day ?? 'monday') as WeekScheme['weekStartDay'],
+    previousWeekStartDay: (org?.week_scheme_previous_start_day ?? null) as WeekScheme['previousWeekStartDay'],
+    transitionDate: org?.week_scheme_transition_date ?? null,
+  }
 
+  const { data: owningSlip } = await supabase
+    .from('weekly_slips')
+    .select('week_start, status')
+    .eq('organization_id', organizationId)
+    .eq('worker_id', workerId)
+    .lte('week_start', dateStr)
+    .gte('week_end', dateStr)
+    .maybeSingle()
+
+  if (owningSlip) {
+    return owningSlip.status === 'finalized' ? currentWeekBounds(scheme).weekStart : owningSlip.week_start
+  }
+
+  const { weekStart: targetWeekStart } = resolveWeekBounds(dateStr, scheme)
   const { data: targetSlip } = await supabase
     .from('weekly_slips')
     .select('status')
@@ -34,7 +58,7 @@ async function resolveCountedWeekStart(
     .eq('week_start', targetWeekStart)
     .maybeSingle()
 
-  return targetSlip?.status === 'finalized' ? currentWeekStart(weekStartDay) : targetWeekStart
+  return targetSlip?.status === 'finalized' ? currentWeekBounds(scheme).weekStart : targetWeekStart
 }
 
 export async function createEntry(_prevState: FormState, formData: FormData): Promise<FormState> {

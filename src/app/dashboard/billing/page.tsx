@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { getBillingState } from '@/lib/billing'
-import type { DateFormat } from '@/lib/dates'
+import { formatDate, type DateFormat } from '@/lib/dates'
 import { PaymentForm } from './PaymentForm'
 import { StartTrialButton } from './StartTrialButton'
 
@@ -45,6 +45,7 @@ export default async function BillingPage() {
   if (membership.role !== 'owner') redirect('/dashboard')
 
   const org = membership.organization
+  const dateFormat = org.date_format as DateFormat
 
   // Billing is centralized to the owner's first (parent) business — 2nd+
   // businesses are auto-active under Premium and never carry their own
@@ -138,11 +139,11 @@ export default async function BillingPage() {
               <p>{billing.daysRemaining} day{billing.daysRemaining === 1 ? '' : 's'} left in your trial.</p>
             )}
             {billing.status === 'active' && billing.nextDueDate && (
-              <p>Next payment due {billing.nextDueDate}.</p>
+              <p>Next payment due {formatDate(billing.nextDueDate, dateFormat)}.</p>
             )}
             {billing.status === 'grace' && (
               <p>
-                Payment was due {billing.nextDueDate}. Pay within {billing.daysRemaining} day
+                Payment was due {formatDate(billing.nextDueDate!, dateFormat)}. Pay within {billing.daysRemaining} day
                 {billing.daysRemaining === 1 ? '' : 's'} to avoid suspension.
               </p>
             )}
@@ -217,7 +218,7 @@ export default async function BillingPage() {
               <tbody>
                 {submissions.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
-                    <td className="px-4 py-3 text-zinc-600">{s.payment_date}</td>
+                    <td className="px-4 py-3 text-zinc-600">{formatDate(s.payment_date, dateFormat)}</td>
                     <td className="px-4 py-3 text-zinc-600">{PURPOSE_LABELS[s.purpose] ?? s.purpose}</td>
                     <td className="px-4 py-3 text-zinc-600">{s.method.replace('_', ' ')}</td>
                     <td className="px-4 py-3 text-zinc-600">{s.transaction_reference}</td>
