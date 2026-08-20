@@ -5,7 +5,6 @@ import { createClient } from '@/lib/supabase/server'
 import {
   addDays,
   currentWeekBounds,
-  daySpan,
   formatDate,
   formatTime,
   today as todayStr,
@@ -15,6 +14,7 @@ import {
 } from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, workerLabel } from '@/lib/format'
+import { computeSalaryComponent, computeWorkAmount } from '@/lib/payroll'
 import { EntryForm } from './entries/EntryForm'
 import { PaymentForm } from './entries/PaymentForm'
 import { deleteEntry, deletePayment } from './entries/actions'
@@ -114,12 +114,13 @@ export default async function DashboardPage({
       .limit(10),
   ])
 
-  // Mirrors finalize_weekly_slip()/SlipView's live formula, summed across
-  // every active worker — a plain sum of work_entries would miss every
+  // Mirrors finalize_weekly_slip()'s live formula, summed across every
+  // active worker — a plain sum of work_entries would miss every
   // salary-only worker (they never log entries) and, before this fix, was
-  // keyed off the wrong date field for backdated entries.
-  const STATUS_DAY_VALUE: Record<string, number> = { present: 1, half_day: 0.5, absent: 0, holiday: 0 }
-  const hasDayOff = daySpan(weekStart, weekEnd) === 7
+  // keyed off the wrong date field for backdated entries. Shares its
+  // per-worker calculation with SlipView via lib/payroll.ts instead of
+  // keeping its own copy, so the two can't silently drift out of sync
+  // again the way this figure once did.
   const entriesByWorker = new Map<string, number>()
   for (const e of weekEntries ?? []) {
     entriesByWorker.set(e.worker_id, (entriesByWorker.get(e.worker_id) ?? 0) + Number(e.amount))
@@ -131,32 +132,20 @@ export default async function DashboardPage({
     attendanceByWorker.set(a.worker_id, rows)
   }
   const weeklyPayroll = (activeWorkers ?? []).reduce((total, w) => {
-    const entriesAmount = entriesByWorker.get(w.id) ?? 0
-    const weeklySalary = w.weekly_salary != null ? Number(w.weekly_salary) : 0
-    const attendanceRows = attendanceByWorker.get(w.id) ?? []
-    const perDayRate = org.standard_days_per_week > 0 ? weeklySalary / org.standard_days_per_week : 0
-    const overtimeHourlyRate =
-      org.standard_hours_per_day > 0 ? (perDayRate / org.standard_hours_per_day) * org.overtime_rate_multiplier : 0
-    const daysSum = attendanceRows
-      .filter((a) => !hasDayOff || a.attendance_date !== weekEnd)
-      .reduce((sum, a) => sum + (STATUS_DAY_VALUE[a.status] ?? 0), 0)
-    const overtimeAmount = attendanceRows.reduce(
-      (sum, a) =>
-        sum + (a.overtime_wage != null ? Number(a.overtime_wage) : Number(a.overtime_hours ?? 0) * overtimeHourlyRate),
-      0
-    )
-    const holidayWage = hasDayOff
-      ? attendanceRows
-          .filter((a) => a.attendance_date === weekEnd && a.status === 'present')
-          .reduce((sum, a) => sum + Number(a.holiday_wage ?? 0), 0)
-      : 0
-    const salaryComponent = attendanceRows.length === 0 ? weeklySalary : daysSum * perDayRate + overtimeAmount + holidayWage
-    const workAmount =
-      w.employment_type === 'salary'
-        ? salaryComponent
-        : w.employment_type === 'hybrid'
-          ? entriesAmount + salaryComponent
-          : entriesAmount
+    const salaryComponent = computeSalaryComponent({
+      weeklySalary: w.weekly_salary,
+      attendanceRows: attendanceByWorker.get(w.id) ?? [],
+      weekStart,
+      weekEnd,
+      standardDaysPerWeek: org.standard_days_per_week,
+      standardHoursPerDay: org.standard_hours_per_day,
+      overtimeRateMultiplier: org.overtime_rate_multiplier,
+    })
+    const workAmount = computeWorkAmount({
+      employmentType: w.employment_type,
+      entriesAmount: entriesByWorker.get(w.id) ?? 0,
+      salaryComponent,
+    })
     return total + workAmount
   }, 0)
   const selectedWorker = (activeWorkers ?? []).find((w) => w.id === workerId)

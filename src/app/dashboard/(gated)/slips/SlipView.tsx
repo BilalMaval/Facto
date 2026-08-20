@@ -12,6 +12,7 @@ import {
 } from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
+import { computeSalaryComponent, computeWorkAmount } from '@/lib/payroll'
 import { createClient } from '@/lib/supabase/server'
 import { reopenSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
@@ -168,50 +169,28 @@ export async function SlipView({
 
   // What counts as "work" depends on how this worker is paid: contract
   // workers are paid for entries logged, salary/hybrid workers are paid an
-  // attendance-driven salary component (present/half-day/absent days at a
-  // per-day rate derived from weekly_salary, plus overtime on top) — or,
-  // if no attendance has been logged for this week at all, the flat
-  // weekly_salary as a fallback so an org that hasn't started using
-  // attendance tracking isn't silently paid nothing. In a full 7-day week,
-  // the last day (weekEnd) is the org's day off by default — it's excluded
-  // from the 6-day present/absent/half-day sum; if it was actually worked
-  // (marked present), its pay is a separately-entered flat holiday_wage
-  // rather than a fraction of weekly_salary, since it isn't one of the 6
-  // days that rate is derived from. A shortened week spanning a Week Start
-  // Day change never reaches that real day off (see resolveWeekBounds) —
-  // every day in it is a genuine working day, so none of that exclusion
-  // applies there; all its days count toward the regular sum instead.
-  // Mirrors finalize_weekly_slip() in the attendance_holiday_and_daily_edit
-  // and week_scheme_transition_holiday_fix migrations exactly.
+  // attendance-driven salary component. Shared with the Dashboard's
+  // org-wide payroll total via lib/payroll.ts, so both stay in lockstep
+  // with finalize_weekly_slip() instead of drifting as separate copies —
+  // see the attendance_holiday_and_daily_edit and
+  // week_scheme_transition_holiday_fix migrations for the SQL source of
+  // truth this mirrors.
   const liveEntriesAmount = (entries ?? []).reduce((sum, e) => sum + Number(e.amount), 0)
   const weeklySalary = worker.weekly_salary != null ? Number(worker.weekly_salary) : 0
-  const STATUS_DAY_VALUE: Record<string, number> = { present: 1, half_day: 0.5, absent: 0, holiday: 0 }
-  const perDayRate = standardDaysPerWeek > 0 ? weeklySalary / standardDaysPerWeek : 0
-  const overtimeHourlyRate = standardHoursPerDay > 0 ? (perDayRate / standardHoursPerDay) * overtimeRateMultiplier : 0
-  const hasDayOff = daySpan(weekStart, weekEnd) === 7
-  const daysSum = (attendanceRows ?? [])
-    .filter((a) => !hasDayOff || a.attendance_date !== weekEnd)
-    .reduce((sum, a) => sum + (STATUS_DAY_VALUE[a.status] ?? 0), 0)
-  // Overtime is either the usual hours x rate, or a flat amount typed
-  // directly for that day (overtime_wage set) overriding the hourly calc —
-  // see the overtime_wage migration.
-  const overtimeAmount = (attendanceRows ?? []).reduce(
-    (sum, a) => sum + (a.overtime_wage != null ? Number(a.overtime_wage) : Number(a.overtime_hours) * overtimeHourlyRate),
-    0
-  )
-  const holidayWage = hasDayOff
-    ? (attendanceRows ?? [])
-        .filter((a) => a.attendance_date === weekEnd && a.status === 'present')
-        .reduce((sum, a) => sum + Number(a.holiday_wage), 0)
-    : 0
-  const salaryComponent =
-    (attendanceRows ?? []).length === 0 ? weeklySalary : daysSum * perDayRate + overtimeAmount + holidayWage
-  const liveWorkAmount =
-    worker.employment_type === 'salary'
-      ? salaryComponent
-      : worker.employment_type === 'hybrid'
-        ? liveEntriesAmount + salaryComponent
-        : liveEntriesAmount
+  const salaryComponent = computeSalaryComponent({
+    weeklySalary: worker.weekly_salary,
+    attendanceRows: attendanceRows ?? [],
+    weekStart,
+    weekEnd,
+    standardDaysPerWeek,
+    standardHoursPerDay,
+    overtimeRateMultiplier,
+  })
+  const liveWorkAmount = computeWorkAmount({
+    employmentType: worker.employment_type,
+    entriesAmount: liveEntriesAmount,
+    salaryComponent,
+  })
   const livePaidAmount = (payments ?? []).reduce((sum, p) => sum + Number(p.amount), 0)
 
   const workAmount = isFinalized ? Number(slip!.work_amount) : liveWorkAmount

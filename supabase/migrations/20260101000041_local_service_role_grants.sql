@@ -1,0 +1,22 @@
+-- LOCAL-DEVELOPMENT PARITY FIX — same category as 20260101000039, not a
+-- security or RLS change.
+--
+-- On hosted Supabase, `service_role` is bootstrapped with full privileges
+-- on every table automatically the moment a project is created — it's the
+-- backend-only privileged key, never exposed to end users, and every
+-- SECURITY DEFINER function plus any admin/server-side tooling relies on
+-- it bypassing RLS and holding full table access. A local Postgres
+-- instance started via `supabase start` has none of that platform
+-- bootstrapping — confirmed via information_schema.role_table_grants that
+-- `service_role` locally holds only TRUNCATE/REFERENCES/TRIGGER on
+-- ordinary tables, not SELECT/INSERT/UPDATE/DELETE, which breaks any
+-- local script or tooling using the service-role key directly (e.g.
+-- scripts/contract-test-payroll.ts's fixture setup/teardown).
+--
+-- This does not affect anon or authenticated, and does not touch RLS or
+-- the column-level grants fixed in 20260101000040 — service_role bypasses
+-- RLS by its own role attribute regardless of table grants, so this
+-- purely restores local parity with what hosted Supabase already grants
+-- it implicitly.
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage on schema public to service_role;
