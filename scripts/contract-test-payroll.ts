@@ -1,5 +1,5 @@
 // Contract test: proves the shared TypeScript preview formula
-// (src/lib/payroll.ts, used by SlipView and the Dashboard) agrees with
+// (packages/payroll-core, used by SlipView and the Dashboard) agrees with
 // finalize_weekly_slip()'s actual SQL output — the real function, called
 // through the real RPC path, not a re-typed copy of it. This is the
 // regression guard for the class of bug Phase 2 found: the Dashboard's
@@ -12,11 +12,11 @@
 //
 // Run with: npm run test:payroll
 // Requires local Supabase running (`supabase start`) — refuses to run
-// against anything else, same guard as src/lib/supabase/envGuard.ts.
+// against anything else, same guard as apps/web/src/lib/supabase/envGuard.ts.
 
 import { execSync } from 'node:child_process'
 import { createClient } from '@supabase/supabase-js'
-import { computeSalaryComponent, computeWorkAmount, type AttendanceRow } from '../src/lib/payroll'
+import { computeSalaryComponent, computeWorkAmount, type AttendanceRow } from '@facto/payroll-core'
 
 const status = JSON.parse(execSync('supabase status -o json', { cwd: __dirname + '/..' }).toString())
 const API_URL: string = status.API_URL
@@ -276,7 +276,7 @@ async function main() {
     console.error(`\n${failures}/${scenarios.length} scenario(s) disagree between TS and SQL.`)
     process.exit(1)
   }
-  console.log(`\nAll ${scenarios.length} scenarios agree between src/lib/payroll.ts and finalize_weekly_slip().`)
+  console.log(`\nAll ${scenarios.length} scenarios agree between @facto/payroll-core and finalize_weekly_slip().`)
 }
 
 main().catch((err) => {

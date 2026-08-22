@@ -14,7 +14,7 @@ import {
 } from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, workerLabel } from '@/lib/format'
-import { computeSalaryComponent, computeWorkAmount } from '@/lib/payroll'
+import { computeSalaryComponent, computeWorkAmount } from '@facto/payroll-core'
 import { EntryForm } from './entries/EntryForm'
 import { PaymentForm } from './entries/PaymentForm'
 import { deleteEntry, deletePayment } from './entries/actions'
@@ -118,7 +118,7 @@ export default async function DashboardPage({
   // active worker — a plain sum of work_entries would miss every
   // salary-only worker (they never log entries) and, before this fix, was
   // keyed off the wrong date field for backdated entries. Shares its
-  // per-worker calculation with SlipView via lib/payroll.ts instead of
+  // per-worker calculation with SlipView via @facto/payroll-core instead of
   // keeping its own copy, so the two can't silently drift out of sync
   // again the way this figure once did.
   const entriesByWorker = new Map<string, number>()

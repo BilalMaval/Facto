@@ -12,7 +12,7 @@ import {
 } from '@/lib/dates'
 import { one } from '@/lib/one'
 import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
-import { computeSalaryComponent, computeWorkAmount } from '@/lib/payroll'
+import { computeSalaryComponent, computeWorkAmount } from '@facto/payroll-core'
 import { createClient } from '@/lib/supabase/server'
 import { reopenSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
@@ -170,7 +170,7 @@ export async function SlipView({
   // What counts as "work" depends on how this worker is paid: contract
   // workers are paid for entries logged, salary/hybrid workers are paid an
   // attendance-driven salary component. Shared with the Dashboard's
-  // org-wide payroll total via lib/payroll.ts, so both stay in lockstep
+  // org-wide payroll total via @facto/payroll-core, so both stay in lockstep
   // with finalize_weekly_slip() instead of drifting as separate copies —
   // see the attendance_holiday_and_daily_edit and
   // week_scheme_transition_holiday_fix migrations for the SQL source of

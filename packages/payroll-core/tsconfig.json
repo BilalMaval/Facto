@@ -10,9 +10,8 @@
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "incremental": true,
-    "types": ["node"]
+    "incremental": true
   },
-  "include": ["scripts/**/*.ts"],
+  "include": ["src/**/*.ts"],
   "exclude": ["node_modules"]
 }

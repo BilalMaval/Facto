@@ -1,4 +1,12 @@
-import { daySpan } from './dates'
+// Mirrors src/lib/dates.ts#daySpan in apps/web, kept in sync by hand — this
+// package must have zero dependency on the web app's internals (dates.ts
+// has a much broader surface used elsewhere in the app), and this one is 2
+// lines and stable. A silent divergence here would fail
+// scripts/contract-test-payroll.ts red, not pass silently — every scenario
+// runs against a 7-day week, exercising exactly this branch.
+function daySpan(startStr: string, endStr: string): number {
+  return Math.round((Date.parse(`${endStr}T00:00:00Z`) - Date.parse(`${startStr}T00:00:00Z`)) / 86400000) + 1
+}
 
 const STATUS_DAY_VALUE: Record<string, number> = { present: 1, half_day: 0.5, absent: 0, holiday: 0 }
 

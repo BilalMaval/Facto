@@ -1,8 +1,10 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
-/.pnp
+# dependencies — unrooted (no leading slash) so these match at any depth,
+# covering apps/web/node_modules, packages/*/node_modules, apps/web/.next,
+# etc. uniformly across the monorepo instead of enumerating every path.
+node_modules
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -14,11 +16,11 @@
 /coverage
 
 # next.js
-/.next/
-/out/
+.next/
+out/
 
 # production
-/build
+build
 
 # misc
 .DS_Store
