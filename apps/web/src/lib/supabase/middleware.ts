@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
+import { fetchWithTimeout } from '@/lib/supabase/timeoutFetch'
 import '@/lib/supabase/envGuard'
 
 export async function updateSession(request: NextRequest) {
@@ -9,6 +11,7 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      global: { fetch: fetchWithTimeout() },
       cookies: {
         getAll() {
           return request.cookies.getAll()
@@ -24,9 +27,7 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
 
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/signup') ||

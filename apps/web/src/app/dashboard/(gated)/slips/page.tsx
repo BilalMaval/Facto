@@ -16,6 +16,7 @@ import {
 import { one } from '@/lib/one'
 import { periodRange, periodLabel, type Period } from '@/lib/period'
 import { formatNumber, workerLabel } from '@/lib/format'
+import { withLastKnownGood } from '@/lib/supabase/queryCache'
 import { SlipSelector } from './SlipSelector'
 import { SlipView } from './SlipView'
 import { PeriodFilterBar } from '../../_components/PeriodFilterBar'
@@ -82,11 +83,14 @@ export default async function SlipsPage({
   const weekEnd = resolveWeekBounds(weekStart, scheme).weekEnd
 
   const supabase = await createClient()
-  const { data: workers } = await supabase
-    .from('workers')
-    .select('id, worker_code, name, is_active')
-    .eq('organization_id', org.id)
-    .order('worker_code')
+  const { data: workers } = await withLastKnownGood(
+    `slips:workers:${org.id}`,
+    supabase
+      .from('workers')
+      .select('id, worker_code, name, is_active')
+      .eq('organization_id', org.id)
+      .order('worker_code')
+  )
 
   const today = todayStr()
   const period: Period = (['daily', 'weekly', 'monthly', 'yearly', 'custom'] as const).includes(

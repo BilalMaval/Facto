@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 
 export async function signOut() {
   const supabase = await createClient()
@@ -15,9 +16,7 @@ export async function switchActiveOrganization(formData: FormData) {
   const organizationId = String(formData.get('organizationId') ?? '')
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
   if (!user) redirect('/login')
 
   const { data: membership } = await supabase

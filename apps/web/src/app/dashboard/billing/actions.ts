@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 
 export type FormState = { error?: string; success?: boolean } | null
 
@@ -53,9 +54,7 @@ export async function submitPaymentProof(_prevState: FormState, formData: FormDa
     return { error: uploadError.message }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
   if (!user) {
     return { error: 'Not authenticated' }
   }

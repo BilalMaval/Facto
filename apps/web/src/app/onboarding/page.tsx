@@ -1,13 +1,12 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { OnboardingForm } from './OnboardingForm'
 
 export default async function OnboardingPage() {
   const supabase = await createClient()
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
 
   if (!user) {
     redirect('/login')

@@ -3,9 +3,23 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { currentWeekBounds, resolveWeekBounds, type WeekScheme } from '@/lib/dates'
 
-export type FormState = { error?: string; success?: boolean } | null
+// queued is set only by the offline-queue wrapper (lib/offlineQueue) when
+// this call couldn't reach the server and was saved locally instead — never
+// set by createEntry/createPayment themselves.
+//
+// networkError is the opposite direction: set BY createEntry/createPayment
+// TO the offline-queue wrapper, marking an `error` that means "the request
+// never reached the server" (as opposed to a real rejection the server sent
+// back, e.g. a finalized week or a bad value) — see the `status === 0` check
+// below. Supabase's client never lets a fetch failure reject the promise;
+// it's swallowed into a normal { error } return value, which is why the
+// wrapper can't tell the two apart from a thrown exception the way
+// tryOrQueue's classifyFailure otherwise expects. Every other caller of
+// these actions ignores this field — it's only read by webAppWiring.ts.
+export type FormState = { error?: string; success?: boolean; queued?: boolean; networkError?: boolean } | null
 
 // Which week's slip a backdated entry/payment counts toward.
 //
@@ -67,20 +81,24 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
   const entryDate = String(formData.get('entryDate') ?? '')
   const workCodeId = String(formData.get('workCodeId') ?? '')
   const quantity = Number(formData.get('quantity') ?? '')
+  // Only ever set by the offline-queue sync replay (see lib/offlineQueue) —
+  // lets a retried entry land on the same row instead of duplicating one
+  // that actually reached the server the first time (see the 23505 check
+  // below). Absent on every normal, non-queued submission.
+  const clientId = formData.get('clientId')?.toString() || undefined
 
   if (!workerId || !entryDate || !workCodeId || !quantity) {
     return { error: 'Worker, date, work code, and quantity are required' }
   }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
   if (!user) redirect('/login')
 
   const countedWeekStart = await resolveCountedWeekStart(supabase, organizationId, workerId, entryDate)
 
-  const { error } = await supabase.from('work_entries').insert({
+  const { error, status } = await supabase.from('work_entries').insert({
+    ...(clientId ? { id: clientId } : {}),
     organization_id: organizationId,
     worker_id: workerId,
     entry_date: entryDate,
@@ -91,7 +109,15 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
   })
 
   if (error) {
-    return { error: error.message }
+    if (error.code === '23505' && clientId) {
+      revalidatePath('/dashboard/entries')
+      revalidatePath('/dashboard')
+      return { success: true }
+    }
+    // status 0 is postgrest-js's own signal that the fetch itself failed —
+    // no response ever came back from the server — as opposed to a real
+    // rejection status codes always carry. See the FormState comment above.
+    return { error: error.message, networkError: status === 0 }
   }
 
   revalidatePath('/dashboard/entries')
@@ -120,20 +146,21 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
   const paymentDate = String(formData.get('paymentDate') ?? '')
   const amount = Number(formData.get('amount') ?? '')
   const note = String(formData.get('note') ?? '').trim()
+  // See the matching comment in createEntry — offline-queue replay only.
+  const clientId = formData.get('clientId')?.toString() || undefined
 
   if (!workerId || !paymentDate || !amount) {
     return { error: 'Worker, date, and amount are required' }
   }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
   if (!user) redirect('/login')
 
   const countedWeekStart = await resolveCountedWeekStart(supabase, organizationId, workerId, paymentDate)
 
-  const { error } = await supabase.from('payments').insert({
+  const { error, status } = await supabase.from('payments').insert({
+    ...(clientId ? { id: clientId } : {}),
     organization_id: organizationId,
     worker_id: workerId,
     payment_date: paymentDate,
@@ -144,7 +171,12 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
   })
 
   if (error) {
-    return { error: error.message }
+    if (error.code === '23505' && clientId) {
+      revalidatePath('/dashboard/entries')
+      revalidatePath('/dashboard')
+      return { success: true }
+    }
+    return { error: error.message, networkError: status === 0 }
   }
 
   revalidatePath('/dashboard/entries')

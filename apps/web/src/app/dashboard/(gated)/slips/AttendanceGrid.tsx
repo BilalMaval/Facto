@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { addDays, dayAbbr, daySpan, formatDate, type DateFormat } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
-import { saveAttendanceDay } from './actions'
+import { wrappedSaveAttendanceDay } from '@/lib/offlineQueue/webAppWiring'
 
 export type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'holiday'
 
@@ -47,7 +47,7 @@ type DayRow = {
   // with the server-computed Total Work below this grid.
   persisted: boolean
 }
-type SaveState = 'idle' | 'saving' | 'saved' | 'error'
+type SaveState = 'idle' | 'saving' | 'saved' | 'queued' | 'error'
 
 export function AttendanceGrid({
   organizationId,
@@ -65,6 +65,7 @@ export function AttendanceGrid({
   weekFinalized,
   today,
   canEditPastDays,
+  canAutoSaveDefaults,
 }: {
   organizationId: string
   workerId: string
@@ -93,6 +94,14 @@ export function AttendanceGrid({
   // later. Enforced again server-side (and at the RLS layer), this only
   // controls what the UI offers.
   canEditPastDays: boolean
+  // False when `existingRows` might not reflect what's actually saved (the
+  // parent's fetch failed and fell back to a stale/absent cache) — in that
+  // case a day with no row here doesn't mean "genuinely never marked," it
+  // means "we don't actually know," so the mount-time default-save below
+  // must not run: it would otherwise queue a 'present' guess for every such
+  // day, silently overwriting whatever the real saved status was once that
+  // queued write reaches the server.
+  canAutoSaveDefaults: boolean
 }) {
   // Normally 7, but a shortened week spanning a Week Start Day change (see
   // lib/dates.ts) has fewer — the grid itself and the per-day rate math
@@ -204,7 +213,7 @@ export function AttendanceGrid({
     })
     setSaveState((prev) => ({ ...prev, [i]: 'saving' }))
     startTransition(async () => {
-      const result = await saveAttendanceDay({
+      const result = await wrappedSaveAttendanceDay({
         organizationId,
         workerId,
         attendanceDate: days[i],
@@ -217,7 +226,7 @@ export function AttendanceGrid({
         setSaveState((prev) => ({ ...prev, [i]: 'error' }))
         setErrorByIndex((prev) => ({ ...prev, [i]: result.error! }))
       } else {
-        setSaveState((prev) => ({ ...prev, [i]: 'saved' }))
+        setSaveState((prev) => ({ ...prev, [i]: result.queued ? 'queued' : 'saved' }))
         updateRow(i, { persisted: true })
         // revalidatePath in the action only marks the server-rendered totals
         // (Total Work/Payable below this grid) stale — it doesn't repaint
@@ -250,6 +259,10 @@ export function AttendanceGrid({
     // that caused the request storm above.
     if (didAutoSaveDefaults.current) return
     didAutoSaveDefaults.current = true
+    // See the canAutoSaveDefaults prop doc — existingRows may be a stale (or
+    // entirely absent) fallback rather than what's really saved, and this
+    // effect must not turn "we don't know" into a guessed write.
+    if (!canAutoSaveDefaults) return
     rows.forEach((row, i) => {
       if (!row.persisted && rowEditable(i)) saveRow(i, row)
     })
@@ -377,18 +390,22 @@ export function AttendanceGrid({
                           ? 'text-zinc-400'
                           : state === 'saved'
                             ? 'text-emerald-600'
-                            : state === 'error'
-                              ? 'text-red-600'
-                              : 'invisible'
+                            : state === 'queued'
+                              ? 'text-amber-600'
+                              : state === 'error'
+                                ? 'text-red-600'
+                                : 'invisible'
                       }`}
                     >
                       {state === 'saving'
                         ? 'Saving…'
                         : state === 'saved'
                           ? 'Saved'
-                          : state === 'error'
-                            ? (errorByIndex[i] ?? 'Save failed')
-                            : 'Saved'}
+                          : state === 'queued'
+                            ? 'Saved locally'
+                            : state === 'error'
+                              ? (errorByIndex[i] ?? 'Save failed')
+                              : 'Saved'}
                     </span>
                   </td>
                   <td className="py-2 px-2">

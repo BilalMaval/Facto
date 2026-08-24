@@ -10,9 +10,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@facto/offline-queue-core": "*",
     "@facto/payroll-core": "*",
     "@supabase/ssr": "^0.12.3",
     "@supabase/supabase-js": "^2.110.8",
+    "@tauri-apps/plugin-store": "^2",
     "next": "16.2.12",
     "react": "19.2.4",
     "react-dom": "19.2.4"

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { isPlatformAdmin } from '@/lib/platformAdmin'
 import { RealtimeRefresh } from '@/components/RealtimeRefresh'
 import { ADMIN_SUBSCRIPTIONS } from '@/lib/realtimeSubscriptions'
@@ -7,9 +8,7 @@ import { AdminNav } from './AdminNav'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
 
   if (!user) redirect('/login')
   if (!(await isPlatformAdmin())) redirect('/dashboard')

@@ -15,6 +15,7 @@ import {
 import { one } from '@/lib/one'
 import { formatMoney, workerLabel } from '@/lib/format'
 import { computeSalaryComponent, computeWorkAmount } from '@facto/payroll-core'
+import { withLastKnownGood } from '@/lib/supabase/queryCache'
 import { EntryForm } from './entries/EntryForm'
 import { PaymentForm } from './entries/PaymentForm'
 import { deleteEntry, deletePayment } from './entries/actions'
@@ -58,24 +59,30 @@ export default async function DashboardPage({
   const [
     { data: activeWorkers },
     { data: workCodes },
-    { data: weekEntries },
-    { data: weekAttendance },
+    { data: weekEntries, error: weekEntriesError },
+    { data: weekAttendance, error: weekAttendanceError },
     { data: outstandingWorkers },
     { data: recentEntries },
     { data: recentPayments },
   ] = await Promise.all([
-    supabase
-      .from('workers')
-      .select('id, worker_code, name, is_active, employment_type, weekly_salary')
-      .eq('organization_id', org.id)
-      .eq('is_active', true)
-      .order('worker_code'),
-    supabase
-      .from('work_codes')
-      .select('id, code, description, rate')
-      .eq('organization_id', org.id)
-      .eq('is_active', true)
-      .order('code'),
+    withLastKnownGood(
+      `dashboard-home:workers:${org.id}`,
+      supabase
+        .from('workers')
+        .select('id, worker_code, name, is_active, employment_type, weekly_salary')
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .order('worker_code')
+    ),
+    withLastKnownGood(
+      `dashboard-home:workCodes:${org.id}`,
+      supabase
+        .from('work_codes')
+        .select('id, code, description, rate')
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .order('code')
+    ),
     // counted_week_start, not entry_date — a backdated/late entry can be
     // redirected to a different week than its raw date (see
     // resolveCountedWeekStart in entries/actions.ts); every other payroll
@@ -113,6 +120,16 @@ export default async function DashboardPage({
       .order('created_at', { ascending: false })
       .limit(10),
   ])
+
+  // Unlike activeWorkers/workCodes above, entries and attendance are never
+  // served from a stale cache — activeWorkers is real (from cache or fresh),
+  // but if either of these genuinely failed, combining that real worker
+  // list with silently-empty entries/attendance would compute a wrong total
+  // that still looks like a normal number (e.g. paying full weekly salary
+  // to workers whose absences didn't load), not an obviously-degraded one.
+  // Better to say the figure is unavailable than to show a plausible one
+  // that's actually incorrect.
+  const payrollUnavailable = Boolean(weekEntriesError || weekAttendanceError)
 
   // Mirrors finalize_weekly_slip()'s live formula, summed across every
   // active worker — a plain sum of work_entries would miss every
@@ -175,6 +192,7 @@ export default async function DashboardPage({
             <div className="mt-3 space-y-3">
               {selectedWorker.employment_type === 'salary' ? null : workCodes?.length ? (
                 <EntryForm
+                  key={selectedWorker.id}
                   organizationId={org.id}
                   today={today}
                   workers={formWorkers}
@@ -185,6 +203,7 @@ export default async function DashboardPage({
                 <p className="text-sm text-zinc-400">Add at least one active work code first.</p>
               )}
               <PaymentForm
+                key={selectedWorker.id}
                 organizationId={org.id}
                 today={today}
                 workers={formWorkers}
@@ -239,9 +258,13 @@ export default async function DashboardPage({
             This week&apos;s payroll ({formatDate(weekStart, org.date_format as DateFormat)} to{' '}
             {formatDate(weekEnd, org.date_format as DateFormat)})
           </p>
-          <p className="mt-1 text-3xl font-semibold tracking-tight">
-            {formatMoney(weeklyPayroll, org.currency, org.show_decimals)}
-          </p>
+          {payrollUnavailable ? (
+            <p className="mt-1 text-sm text-zinc-400">Can&apos;t reach the server — figure unavailable.</p>
+          ) : (
+            <p className="mt-1 text-3xl font-semibold tracking-tight">
+              {formatMoney(weeklyPayroll, org.currency, org.show_decimals)}
+            </p>
+          )}
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">

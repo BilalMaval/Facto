@@ -5,6 +5,7 @@ import { one } from '@/lib/one'
 import { formatDate, formatTime, today as todayStr, type DateFormat } from '@/lib/dates'
 import { periodRange, periodLabel, type Period } from '@/lib/period'
 import { formatMoney, workerLabel } from '@/lib/format'
+import { withLastKnownGood } from '@/lib/supabase/queryCache'
 import { EntryForm } from './EntryForm'
 import { PaymentForm } from './PaymentForm'
 import { deleteEntry, deletePayment } from './actions'
@@ -55,17 +56,23 @@ export default async function EntriesPage({
   const supabase = await createClient()
 
   const [{ data: allWorkers }, { data: workCodes }] = await Promise.all([
-    supabase
-      .from('workers')
-      .select('id, worker_code, name, is_active, employment_type')
-      .eq('organization_id', org.id)
-      .order('worker_code'),
-    supabase
-      .from('work_codes')
-      .select('id, code, description, rate')
-      .eq('organization_id', org.id)
-      .eq('is_active', true)
-      .order('code'),
+    withLastKnownGood(
+      `entries:workers:${org.id}`,
+      supabase
+        .from('workers')
+        .select('id, worker_code, name, is_active, employment_type')
+        .eq('organization_id', org.id)
+        .order('worker_code')
+    ),
+    withLastKnownGood(
+      `entries:workCodes:${org.id}`,
+      supabase
+        .from('work_codes')
+        .select('id, code, description, rate')
+        .eq('organization_id', org.id)
+        .eq('is_active', true)
+        .order('code')
+    ),
   ])
 
   const activeWorkers = (allWorkers ?? []).filter((w) => w.is_active)

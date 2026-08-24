@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 
 const ATTENDANCE_STATUSES = ['present', 'absent', 'half_day', 'holiday'] as const
 
@@ -49,13 +50,11 @@ export async function saveAttendanceDay(input: {
   // default); a number = pay this flat amount instead, ignoring hours.
   overtimeWage: number | null
   holidayWage: number
-}): Promise<{ error?: string }> {
+}): Promise<{ error?: string; networkError?: boolean }> {
   if (!ATTENDANCE_STATUSES.includes(input.status)) return { error: 'Invalid attendance status' }
 
   const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
   if (!user) return { error: 'Not signed in' }
 
   const overtimeHours = Number.isFinite(input.overtimeHours) && input.overtimeHours >= 0 ? input.overtimeHours : 0
@@ -65,7 +64,7 @@ export async function saveAttendanceDay(input: {
       : null
   const holidayWage = Number.isFinite(input.holidayWage) && input.holidayWage >= 0 ? input.holidayWage : 0
 
-  const { error } = await supabase.from('attendance').upsert(
+  const { error, status } = await supabase.from('attendance').upsert(
     {
       organization_id: input.organizationId,
       worker_id: input.workerId,
@@ -79,7 +78,9 @@ export async function saveAttendanceDay(input: {
     { onConflict: 'organization_id,worker_id,attendance_date' }
   )
 
-  if (error) return { error: error.message }
+  // status 0 means the fetch itself never reached the server — see the
+  // matching FormState.networkError comment in entries/actions.ts.
+  if (error) return { error: error.message, networkError: status === 0 }
 
   revalidatePath('/dashboard/slips')
   revalidatePath('/dashboard')

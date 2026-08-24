@@ -14,6 +14,7 @@ import { one } from '@/lib/one'
 import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
 import { computeSalaryComponent, computeWorkAmount } from '@facto/payroll-core'
 import { createClient } from '@/lib/supabase/server'
+import { withLastKnownGood } from '@/lib/supabase/queryCache'
 import { reopenSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
 import { PrintButton } from './PrintButton'
@@ -73,17 +74,47 @@ export async function SlipView({
   const scheme: WeekScheme = { weekStartDay, previousWeekStartDay, transitionDate }
   const supabase = await createClient()
 
-  const { data: worker } = await supabase
-    .from('workers')
-    .select(
-      'id, worker_code, name, father_name, contact_no, designation, address, photo_url, advance_balance, employment_type, weekly_salary'
-    )
-    .eq('id', workerId)
-    .eq('organization_id', organizationId)
-    .maybeSingle()
+  // Cached like the workers list elsewhere — this is the query that used to
+  // block the whole slip (AttendanceGrid included) from rendering at all
+  // while offline, since a failed fetch here meant bailing out before ever
+  // reaching the grid. A worker's own identity fields rarely change, so
+  // reusing a moments-stale copy is what actually lets attendance still get
+  // marked while Supabase is unreachable.
+  type SlipWorker = {
+    id: string
+    worker_code: string | null
+    name: string
+    father_name: string | null
+    contact_no: string | null
+    designation: string | null
+    address: string | null
+    photo_url: string | null
+    advance_balance: number
+    employment_type: string
+    weekly_salary: number | null
+  }
+  const { data: worker, stale } = await withLastKnownGood<SlipWorker>(
+    `slipView:worker:${workerId}`,
+    supabase
+      .from('workers')
+      .select(
+        'id, worker_code, name, father_name, contact_no, designation, address, photo_url, advance_balance, employment_type, weekly_salary'
+      )
+      .eq('id', workerId)
+      .eq('organization_id', organizationId)
+      .maybeSingle()
+  )
 
   if (!worker) {
-    return <p className="mt-8 text-sm text-red-600 print:hidden">Worker not found.</p>
+    // A failed query with nothing cached yet, and a genuinely-deleted
+    // worker, both land here as `!worker` — telling them apart matters,
+    // since "not found" reads as a data problem the user needs to fix, when
+    // a connectivity failure is neither their fault nor permanent.
+    return (
+      <p className="mt-8 text-sm text-red-600 print:hidden">
+        {stale ? "Can't reach the server — try again shortly." : 'Worker not found.'}
+      </p>
+    )
   }
 
   let photoSignedUrl: string | null = null
@@ -128,13 +159,37 @@ export async function SlipView({
 
   // Attendance has no counted_week_start (see the migration for why) — it's
   // always looked up by the plain calendar range of the week being viewed.
-  const { data: attendanceRows } = await supabase
-    .from('attendance')
-    .select('attendance_date, status, overtime_hours, overtime_wage, holiday_wage')
-    .eq('organization_id', organizationId)
-    .eq('worker_id', workerId)
-    .gte('attendance_date', weekStart)
-    .lte('attendance_date', weekEnd)
+  //
+  // Cached (unlike entries/payments/the payroll total above) because a
+  // failure here doesn't just mean "show it as unavailable" — AttendanceGrid
+  // treats an empty result as "nothing recorded yet" and its mount effect
+  // auto-saves a default status ('present') for every day it doesn't already
+  // have a row for. A live-query failure would then look identical to a
+  // genuinely blank week, silently queuing "present" for days that were
+  // actually marked something else — a real overwrite once synced, not just
+  // a display glitch. `attendanceDataIsFresh` (below) is the other half of
+  // this fix: even with caching, a worker/week never successfully loaded
+  // before going offline still has nothing to fall back to, so the mount
+  // effect is told outright not to auto-save defaults unless this fetch
+  // demonstrably succeeded just now.
+  type AttendanceRow = {
+    attendance_date: string
+    status: string
+    overtime_hours: number
+    overtime_wage: number | null
+    holiday_wage: number
+  }
+  const { data: attendanceRows, stale: attendanceStale } = await withLastKnownGood<AttendanceRow[]>(
+    `slipView:attendance:${workerId}:${weekStart}`,
+    supabase
+      .from('attendance')
+      .select('attendance_date, status, overtime_hours, overtime_wage, holiday_wage')
+      .eq('organization_id', organizationId)
+      .eq('worker_id', workerId)
+      .gte('attendance_date', weekStart)
+      .lte('attendance_date', weekEnd)
+  )
+  const attendanceDataIsFresh = !attendanceStale
 
   const isFinalized = slip?.status === 'finalized'
 
@@ -386,6 +441,13 @@ export async function SlipView({
           {transitionNotice && <p className="mt-1 text-[11px] text-sky-700">{transitionNotice}</p>}
         </div>
 
+        {(stale || attendanceStale) && (
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 print:hidden">
+            Showing the last saved version — can&apos;t reach the server right now. Nothing here is lost;
+            any changes you make will be saved locally and sync automatically once you&apos;re back online.
+          </p>
+        )}
+
         <div className="mt-6 flex flex-wrap gap-6">
           {photoSignedUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -424,6 +486,7 @@ export async function SlipView({
             weekFinalized={isFinalized}
             today={todayStr()}
             canEditPastDays={viewerRole === 'owner'}
+            canAutoSaveDefaults={attendanceDataIsFresh}
           />
         )}
 

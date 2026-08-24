@@ -5,15 +5,34 @@ import { getBillingState } from '@/lib/billing'
 import { createClient } from '@/lib/supabase/server'
 import { countUnreadByTicket } from '@/lib/support'
 import { RealtimeRefresh } from '@/components/RealtimeRefresh'
+import { OfflineQueueBanner } from '@/components/OfflineQueueBanner'
 import { orgScopedSubscriptions } from '@/lib/realtimeSubscriptions'
 import type { WeekStartDay } from '@/lib/dates'
 import { DashboardNav } from './DashboardNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, membership, memberships } = await getCurrentMembership()
+  const { user, membership, memberships, membershipLookupFailed } = await getCurrentMembership()
 
   if (!user) redirect('/login')
-  if (!membership) redirect('/onboarding')
+
+  if (!membership) {
+    // A failed lookup (Supabase unreachable) must not be mistaken for a
+    // genuinely brand-new user — that would send an already-onboarded user
+    // back through onboarding every time connectivity blips.
+    if (membershipLookupFailed) {
+      return (
+        <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-4 py-16 text-center">
+          <div className="max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
+            <h1 className="text-lg font-semibold text-zinc-900">Can&apos;t reach the server</h1>
+            <p className="mt-2 text-sm text-zinc-500">
+              Your organization couldn&apos;t be loaded. Check your connection and try again.
+            </p>
+          </div>
+        </div>
+      )
+    }
+    redirect('/onboarding')
+  }
 
   const billing = getBillingState(membership.organization)
 
@@ -75,6 +94,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
           Free trial — {billing.daysRemaining} day{billing.daysRemaining === 1 ? '' : 's'} left
         </Link>
       )}
+
+      <OfflineQueueBanner />
     </div>
   )
 }

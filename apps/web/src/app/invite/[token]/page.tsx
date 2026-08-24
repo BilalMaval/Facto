@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { acceptInvite } from './actions'
 
 export default async function InvitePage({
@@ -21,9 +22,7 @@ export default async function InvitePage({
     | { organization_name: string; role: string; email: string; status: string; expires_at: string }
     | undefined
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getResilientUser(supabase)
 
   const next = `/invite/${token}`
 

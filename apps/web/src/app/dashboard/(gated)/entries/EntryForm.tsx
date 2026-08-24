@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
-import { createEntry, type FormState } from './actions'
+import { useActionState, useEffect, useMemo, useState } from 'react'
+import type { FormState } from './actions'
+import { wrappedCreateEntry } from '@/lib/offlineQueue/webAppWiring'
 import { workerLabel } from '@/lib/format'
 import { WorkCodeSearchSelect } from '../../_components/WorkCodeSearchSelect'
 import { DatePicker } from '@/components/DatePicker'
@@ -25,7 +26,7 @@ export function EntryForm({
   workCodes: WorkCode[]
   dateFormat: DateFormat
 }) {
-  const [state, formAction, pending] = useActionState(createEntry, initialState)
+  const [state, formAction, pending] = useActionState(wrappedCreateEntry, initialState)
 
   const [entryDate, setEntryDate] = useState(today)
   const [workCodeId, setWorkCodeId] = useState(workCodes[0]?.id ?? '')
@@ -36,6 +37,14 @@ export function EntryForm({
   // stay selected so staff can log several entries in a row quickly.
   const [quantityGeneration, setQuantityGeneration] = useState(0)
   const [lastHandledState, setLastHandledState] = useState<FormState>(null)
+  // "Saved locally" is a one-time confirmation, not a standing status — the
+  // bottom-right pending-count banner (OfflineQueueBanner) is what stays up
+  // for as long as the item is actually still queued. Without this, the
+  // message kept showing on whichever worker's form last rendered it, which
+  // read as "this worker's change" even after switching to someone else's —
+  // see quantityGeneration's key-based remount on worker switch, which now
+  // also resets this, plus the timer below for staying on the same worker.
+  const [showQueuedBanner, setShowQueuedBanner] = useState(false)
   if (state !== lastHandledState) {
     setLastHandledState(state)
     if (state?.success) {
@@ -43,7 +52,13 @@ export function EntryForm({
       setQuantityTouched(false)
       setQuantityGeneration((g) => g + 1)
     }
+    if (state?.queued) setShowQueuedBanner(true)
   }
+  useEffect(() => {
+    if (!showQueuedBanner) return
+    const timer = setTimeout(() => setShowQueuedBanner(false), 4000)
+    return () => clearTimeout(timer)
+  }, [showQueuedBanner])
 
   const selectedRate = useMemo(
     () => workCodes.find((wc) => wc.id === workCodeId)?.rate ?? 0,
@@ -66,6 +81,11 @@ export function EntryForm({
 
       {state?.error && (
         <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
+      )}
+      {showQueuedBanner && (
+        <p className="w-full rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Saved locally — will sync when back online.
+        </p>
       )}
 
       <div className="w-40">

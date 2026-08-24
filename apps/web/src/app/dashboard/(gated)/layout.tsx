@@ -5,10 +5,18 @@ import { getBillingState, isBlocked } from '@/lib/billing'
 import { isPlatformAdmin } from '@/lib/platformAdmin'
 
 export default async function GatedLayout({ children }: { children: React.ReactNode }) {
-  const { user, membership } = await getCurrentMembership()
+  const { user, membership, membershipLookupFailed } = await getCurrentMembership()
 
   if (!user) redirect('/login')
-  if (!membership) redirect('/onboarding')
+
+  if (!membership) {
+    // Same reasoning as dashboard/layout.tsx: a failed lookup must not be
+    // treated as "genuinely has no org" and redirected to onboarding. The
+    // parent layout already renders the "can't reach the server" screen in
+    // that case, so just render nothing extra here and let it show through.
+    if (membershipLookupFailed) return null
+    redirect('/onboarding')
+  }
 
   const billing = getBillingState(membership.organization)
 
