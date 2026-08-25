@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getResilientUser } from '@/lib/supabase/resilientUser'
+import { isRetryableStatus } from '@/lib/supabase/retryableStatus'
 
 const ATTENDANCE_STATUSES = ['present', 'absent', 'half_day', 'holiday'] as const
 
@@ -78,9 +79,9 @@ export async function saveAttendanceDay(input: {
     { onConflict: 'organization_id,worker_id,attendance_date' }
   )
 
-  // status 0 means the fetch itself never reached the server — see the
-  // matching FormState.networkError comment in entries/actions.ts.
-  if (error) return { error: error.message, networkError: status === 0 }
+  // See isRetryableStatus (lib/supabase/retryableStatus.ts) and the matching
+  // FormState.networkError comment in entries/actions.ts.
+  if (error) return { error: error.message, networkError: isRetryableStatus(status) }
 
   revalidatePath('/dashboard/slips')
   revalidatePath('/dashboard')

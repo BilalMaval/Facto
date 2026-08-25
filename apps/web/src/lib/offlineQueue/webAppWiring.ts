@@ -13,9 +13,14 @@ export type QueueStatus = {
   pending: number
   syncing: boolean
   conflicts: { id: string; kind: QueueItemKind; message: string }[]
+  // Bumped exactly once per confirmed offline→online transition (never on
+  // mount, never on a re-render) — the one signal OfflineQueueBanner needs
+  // to call router.refresh() reliably, without re-deriving "did online just
+  // flip true" from `online` itself and risking a stale/duplicate trigger.
+  reconnectedAt: number
 }
 
-let status: QueueStatus = { online: true, pending: 0, syncing: false, conflicts: [] }
+let status: QueueStatus = { online: true, pending: 0, syncing: false, conflicts: [], reconnectedAt: 0 }
 const listeners = new Set<() => void>()
 
 function setStatus(patch: Partial<QueueStatus>) {
@@ -125,19 +130,64 @@ export function dismissConflict(id: string) {
   setStatus({ conflicts: status.conflicts.filter((c) => c.id !== id) })
 }
 
+// navigator.onLine only reflects the OS network adapter — stopping local
+// Supabase (Docker down, or just `supabase stop`) never touches that, so
+// the browser's online/offline events never fire for exactly the outage
+// this whole feature exists to survive. This is what actually answers "is
+// Supabase reachable right now": any response at all (even a 404/401 —
+// this isn't checking the response is successful, just that a server
+// answered) means reachable; a fetch that never gets a response at all
+// (connection refused, DNS failure, timeout) means it isn't.
+async function probeReachable(): Promise<boolean> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anonKey) return true
+  try {
+    await fetch(`${url}/rest/v1/`, {
+      headers: { apikey: anonKey },
+      signal: AbortSignal.timeout(3000),
+      cache: 'no-store',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const REACHABILITY_POLL_MS = 5000
+
 let initialized = false
 
-// Called once from OfflineQueueBanner's mount effect — sets up online/offline
-// tracking and picks up any items still queued from a previous session.
+// Called once from OfflineQueueBanner's mount effect — sets up
+// reachability tracking (both the fast, event-driven browser signal and
+// the slower but authoritative poll against Supabase itself) and picks up
+// any items still queued from a previous session.
 export function initOfflineQueue() {
   if (initialized || typeof window === 'undefined') return
   initialized = true
   setStatus({ online: navigator.onLine })
-  window.addEventListener('online', () => {
-    setStatus({ online: true })
-    void syncNow()
-  })
+
+  function markReachable(reachable: boolean) {
+    const wasOffline = !status.online
+    setStatus({ online: reachable, ...(reachable && wasOffline ? { reconnectedAt: Date.now() } : {}) })
+    // Only worth trying once we've actually reached the server again —
+    // attempting mid-outage would just re-pay the same failure syncQueue
+    // already handles gracefully (stop the drain, stay queued).
+    if (reachable && wasOffline) void syncNow()
+  }
+
+  // Fast path: a real network-adapter change (wifi off, laptop closed) —
+  // no reason to wait out a poll tick for something the browser already
+  // told us instantly.
+  window.addEventListener('online', () => void probeReachable().then(markReachable))
   window.addEventListener('offline', () => setStatus({ online: false }))
+
+  // Authoritative path: catches "the OS network is fine but Supabase
+  // itself is down" — the scenario the events above can't see at all.
+  // Runs continuously, not just while believed offline, since `online`
+  // being true here doesn't guarantee it's still true a moment from now.
+  setInterval(() => void probeReachable().then(markReachable), REACHABILITY_POLL_MS)
+
   void refreshPendingCount()
 }
 

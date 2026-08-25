@@ -1,8 +1,10 @@
 'use client'
 
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { WEEK_SCHEME_LABEL, type WeekStartDay } from '@/lib/dates'
+import { initOfflineQueue, useOfflineQueueStatus } from '@/lib/offlineQueue/webAppWiring'
 import { signOut } from './actions'
 import { OrgSwitcher } from './OrgSwitcher'
 
@@ -45,6 +47,13 @@ export function DashboardNav({
   weekStartDay: WeekStartDay
 }) {
   const pathname = usePathname()
+  // Harmless to call alongside OfflineQueueBanner's own init — it's a
+  // one-shot guard (see initOfflineQueue), so whichever of the two mounts
+  // first is the one that actually starts reachability tracking.
+  useEffect(() => {
+    initOfflineQueue()
+  }, [])
+  const { online: isOnline } = useOfflineQueueStatus()
   const isAdmin = role === 'owner' || role === 'admin'
   const isOwner = role === 'owner'
   const visible = (t: Tab) =>
@@ -95,6 +104,24 @@ export function DashboardNav({
               className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
             >
               {WEEK_SCHEME_LABEL[weekStartDay]}
+            </span>
+            {/* Reflects an actual reachability probe against Supabase
+                (webAppWiring.ts), not the browser's online/offline events —
+                those don't fire when it's the local backend that's down,
+                not the network adapter, which is the one case this exists
+                to surface. */}
+            <span
+              title={isOnline ? 'Connected to the server' : "Can't reach the server — working offline"}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                isOnline
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                  : 'border-amber-200 bg-amber-50 text-amber-700'
+              }`}
+            >
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}
+              />
+              {isOnline ? 'Online' : 'Offline'}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-zinc-500">

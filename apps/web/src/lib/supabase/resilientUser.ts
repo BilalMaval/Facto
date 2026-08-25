@@ -1,5 +1,5 @@
 import { isAuthRetryableFetchError, type SupabaseClient } from '@supabase/supabase-js'
-import { isBreakerOpen, openBreaker } from '@/lib/supabase/timeoutFetch'
+import { isBreakerOpen } from '@/lib/supabase/timeoutFetch'
 
 // getUser() always makes a real network call to Auth — the right behavior
 // when it succeeds or genuinely rejects a session, since it's the one check
@@ -28,15 +28,19 @@ import { isBreakerOpen, openBreaker } from '@/lib/supabase/timeoutFetch'
 const TIMEOUT_MS = 3000
 const TIMED_OUT = Symbol('resilientUser: timed out')
 
-// Deliberately shorter than timeoutFetch.ts's own internal timeout: that
-// module's timer only opens its breaker when IT fires, but this race here
-// always wins first (3s < 5s) and moves on, abandoning the fetch before the
-// inner timer gets a chance — so without the explicit openBreaker() calls
-// below, the breaker would only end up set by an orphaned timer firing on
-// its own schedule, well after this function (and whatever queries follow
-// it in the same request) already decided what to do. Confirmed empirically:
-// without this, a page whose first call is auth still paid the full cost of
-// every subsequent query before falling back.
+// Deliberately shorter than timeoutFetch.ts's own internal timeout — this
+// race always wins first (3s < 5s) and moves on, abandoning the fetch
+// rather than waiting out auth-js's own much longer retry loop. Used to
+// also call openBreaker() itself on that bail, on the theory that without
+// it the breaker would only ever get set by an orphaned timer firing later.
+// Removed that: bailing at just 3s is an even more trigger-happy version of
+// the same mistake timeoutFetch.ts's own setTimeout branch made — treating
+// "we got impatient" as "confirmed down," when fetches from inside this dev
+// server can genuinely take 5.9-9.2s while Supabase is fully healthy. The
+// abandoned getUser() fetch still runs through fetchWithTimeout underneath,
+// so its real eventual outcome still reaches the shared breaker on its own
+// — this just stops a merely-slow response from prematurely opening it and
+// fast-rejecting every other query on the page for the next 10s.
 const SUPABASE_ORIGIN = (() => {
   try {
     return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).origin
@@ -73,8 +77,6 @@ export async function getResilientUser(supabase: SupabaseClient<any, any, any>) 
     if (data.user) return data.user
     // A real (non-retryable) rejection — genuinely not authenticated.
     if (!(error && isAuthRetryableFetchError(error))) return null
-  } else if (SUPABASE_ORIGIN) {
-    openBreaker(SUPABASE_ORIGIN)
   }
 
   // Either a retryable connectivity failure or our own timeout — both mean

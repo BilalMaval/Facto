@@ -57,17 +57,12 @@ function originKey(input: RequestInfo | URL): string {
 }
 
 // Exposed so resilientUser.ts's own outer timeout (shorter than this
-// module's, deliberately — see its comment) can consult and contribute to
-// the same breaker directly, rather than relying on this module's internal
-// timer to fire on its own schedule after the outer race has already moved
-// on. Takes a plain origin string (e.g. from NEXT_PUBLIC_SUPABASE_URL)
-// rather than a request, since the caller isn't making a fetch call itself.
+// module's, deliberately — see its comment) can check the breaker before
+// deciding whether to even attempt getUser(), without making a fetch call
+// itself. Takes a plain origin string (e.g. from NEXT_PUBLIC_SUPABASE_URL)
+// rather than a request for that reason.
 export function isBreakerOpen(origin: string): boolean {
   return (breakerOpenUntil.get(origin) ?? 0) > Date.now()
-}
-
-export function openBreaker(origin: string): void {
-  breakerOpenUntil.set(origin, Date.now() + BREAKER_COOLDOWN_MS)
 }
 
 // This rejection has two independent readers that each need a different
@@ -115,27 +110,55 @@ export function fetchWithTimeout(timeoutMs = DEFAULT_TIMEOUT_MS): typeof fetch {
 
     const timeoutSignal = AbortSignal.timeout(timeoutMs)
     const signal = init?.signal ? AbortSignal.any([init.signal, timeoutSignal]) : timeoutSignal
-    const fetchPromise = fetch(input, { ...init, signal })
-    fetchPromise.catch(() => {}) // never let the abandoned attempt surface as an unhandled rejection
+    // cache: 'no-store' opts this out of Next's dev-mode Data Cache fetch
+    // instrumentation, on general principle — didn't turn out to be what
+    // was making fetches slow here, but there's no reason for Server
+    // Component data fetches to go through cache bookkeeping regardless.
+    const fetchPromise = fetch(input, { ...init, signal, cache: 'no-store' })
 
-    let settledByTimeout = false
-    const guardedFetch = fetchPromise.then(
-      (response) => {
-        if (!settledByTimeout) breakerOpenUntil.delete(key)
-        return response
-      },
+    // The real fetch's eventual outcome updates the breaker — including
+    // after our own timeout below has already given up and moved on. A
+    // late success clears it: this file's own top comment already
+    // established that AbortSignal.timeout() doesn't reliably cancel the
+    // underlying request in this dev environment, so an "abandoned" fetch
+    // keeps running for real, and fetches issued from inside this dev
+    // server can genuinely take longer than DEFAULT_TIMEOUT_MS even while
+    // Supabase is fully healthy (measured 5.9–9.2s against a target that
+    // answered a plain curl in 626ms) — an earlier version discarded that
+    // late success entirely, so the breaker could stay open indefinitely
+    // long after the real outage ended, waiting for a "fast enough" probe
+    // that might never come.
+    //
+    // A late REJECTION only opens the breaker if it's a genuine network
+    // failure, not an AbortError — when the signal *does* manage to cancel
+    // the request (confirmed it sometimes does, inconsistently, matching
+    // "doesn't *reliably* cancel" rather than "never"), that rejection
+    // means "we gave up on it," not "the server refused it," and treating
+    // our own cancellation as proof of an outage was reopening the breaker
+    // right back up through this exact path even after the fix above.
+    fetchPromise.then(
+      () => breakerOpenUntil.delete(key),
       (err) => {
-        if (!settledByTimeout) breakerOpenUntil.set(key, Date.now() + BREAKER_COOLDOWN_MS)
-        throw err
+        if (err?.name !== 'AbortError') breakerOpenUntil.set(key, Date.now() + BREAKER_COOLDOWN_MS)
       }
     )
+    fetchPromise.catch(() => {}) // never let the abandoned attempt surface as an unhandled rejection
 
     return Promise.race([
-      guardedFetch,
+      fetchPromise,
       new Promise<Response>((_, reject) => {
         setTimeout(() => {
-          settledByTimeout = true
-          breakerOpenUntil.set(key, Date.now() + BREAKER_COOLDOWN_MS)
+          // Deliberately does NOT touch the breaker. Exceeding our own
+          // patience isn't evidence of an outage — confirmed empirically
+          // that fetches from inside this dev server can genuinely take
+          // 5.9-9.2s while Supabase is fully healthy and answers a plain
+          // curl in under a second. This only bounds how long *this
+          // caller* waits; the abandoned fetch keeps running for real and
+          // its actual outcome (the .then() above) is the only thing
+          // allowed to open or clear the breaker. A genuine outage doesn't
+          // need this branch to catch it either — a truly stopped Supabase
+          // fails fast (~70ms, connection refused, see top comment), so
+          // the real rejection arrives well before this timer would fire.
           reject(timeoutError("Can't reach the server — check your connection and try again."))
         }, timeoutMs)
       }),

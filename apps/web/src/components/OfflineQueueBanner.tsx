@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { initOfflineQueue, syncNow, dismissConflict, useOfflineQueueStatus } from '@/lib/offlineQueue/webAppWiring'
 
 // Renders nothing when there's nothing to say — online, empty queue, no
@@ -11,7 +12,37 @@ export function OfflineQueueBanner() {
     initOfflineQueue()
   }, [])
 
-  const { online, pending, syncing, conflicts } = useOfflineQueueStatus()
+  const { online, pending, syncing, conflicts, reconnectedAt } = useOfflineQueueStatus()
+  const router = useRouter()
+
+  // Server Component data (org settings, a worker's slip, membership —
+  // anything read via the last-known-good caches in queryCache.ts) only
+  // ever refetches on a new request. Without this, coming back online left
+  // every already-rendered page showing its stale fallback — including the
+  // "can't reach the server" notice — until the user happened to navigate
+  // or manually reload. reconnectedAt only changes on a real, confirmed
+  // offline→online transition, so this can't fire on mount or re-render.
+  //
+  // Fires twice, not once: this component's own reachability probe (a
+  // direct client→Supabase fetch) is entirely independent of the
+  // server-side breaker in timeoutFetch.ts that Server Component data
+  // fetches go through — the two don't share any state. A refresh
+  // triggered the instant this probe succeeds can still land inside that
+  // *other* breaker's own 10s cooldown from whatever failed moments
+  // earlier server-side, and come back stale again with nothing left to
+  // retry it — confirmed empirically, it doesn't self-heal by waiting.
+  // The second, delayed refresh is a plain timing safety net: comfortably
+  // past that cooldown by construction (10s), not a general retry-until-
+  // confirmed loop, since the client has no way to see whether a given
+  // refresh actually landed fresh data.
+  const lastHandledReconnect = useRef(0)
+  useEffect(() => {
+    if (reconnectedAt === 0 || reconnectedAt === lastHandledReconnect.current) return
+    lastHandledReconnect.current = reconnectedAt
+    router.refresh()
+    const retryTimer = setTimeout(() => router.refresh(), 12000)
+    return () => clearTimeout(retryTimer)
+  }, [reconnectedAt, router])
 
   if (online && pending === 0 && conflicts.length === 0) return null
 

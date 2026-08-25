@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getResilientUser } from '@/lib/supabase/resilientUser'
+import { isRetryableStatus } from '@/lib/supabase/retryableStatus'
 import { currentWeekBounds, resolveWeekBounds, type WeekScheme } from '@/lib/dates'
 
 // queued is set only by the offline-queue wrapper (lib/offlineQueue) when
@@ -11,14 +12,23 @@ import { currentWeekBounds, resolveWeekBounds, type WeekScheme } from '@/lib/dat
 // set by createEntry/createPayment themselves.
 //
 // networkError is the opposite direction: set BY createEntry/createPayment
-// TO the offline-queue wrapper, marking an `error` that means "the request
-// never reached the server" (as opposed to a real rejection the server sent
-// back, e.g. a finalized week or a bad value) — see the `status === 0` check
-// below. Supabase's client never lets a fetch failure reject the promise;
-// it's swallowed into a normal { error } return value, which is why the
-// wrapper can't tell the two apart from a thrown exception the way
-// tryOrQueue's classifyFailure otherwise expects. Every other caller of
-// these actions ignores this field — it's only read by webAppWiring.ts.
+// TO the offline-queue wrapper, marking an `error` that means "not safe to
+// treat as a genuine, permanent rejection" — either the request never
+// reached the server at all (status 0), or it reached PostgREST/Supabase but
+// got a 5xx back, which is that layer's own way of saying it couldn't
+// process the request right now (confirmed in practice: PostgREST returns
+// one right after Postgres restarts, while its schema cache is still
+// reloading) — not a verdict on the write itself the way a 4xx is (e.g. a
+// finalized week or a bad value). Treating a 5xx as networkError: false was
+// a real bug: syncQueue moved a queued write into "permanent conflict" and
+// discarded it over what was really just PostgREST not being ready yet, a
+// few seconds after Supabase came back up — see isRetryableStatus below.
+// Supabase's client never lets a fetch failure reject the promise; it's
+// swallowed into a normal { error } return value, which is why the wrapper
+// can't tell these apart from a thrown exception the way tryOrQueue's
+// classifyFailure otherwise expects. Every other caller of these actions
+// ignores this field — it's only read by webAppWiring.ts. See
+// isRetryableStatus (lib/supabase/retryableStatus.ts) for the status check.
 export type FormState = { error?: string; success?: boolean; queued?: boolean; networkError?: boolean } | null
 
 // Which week's slip a backdated entry/payment counts toward.
@@ -114,10 +124,9 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
       revalidatePath('/dashboard')
       return { success: true }
     }
-    // status 0 is postgrest-js's own signal that the fetch itself failed —
-    // no response ever came back from the server — as opposed to a real
-    // rejection status codes always carry. See the FormState comment above.
-    return { error: error.message, networkError: status === 0 }
+    // See isRetryableStatus above and the FormState comment for why this
+    // isn't just `status === 0`.
+    return { error: error.message, networkError: isRetryableStatus(status) }
   }
 
   revalidatePath('/dashboard/entries')
