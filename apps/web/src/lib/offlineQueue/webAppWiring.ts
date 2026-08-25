@@ -138,13 +138,22 @@ export function dismissConflict(id: string) {
 // this isn't checking the response is successful, just that a server
 // answered) means reachable; a fetch that never gets a response at all
 // (connection refused, DNS failure, timeout) means it isn't.
+//
+// Hits GoTrue's dedicated /auth/v1/health endpoint, not PostgREST's own
+// root (`/rest/v1/`) — an earlier version used the latter and it was a real
+// bug, not just a slow choice: PostgREST's root generates the full OpenAPI
+// schema for every table, and confirmed via docker logs this was measured
+// timing out against Postgres (`57014 canceling statement due to statement
+// timeout`) roughly once per poll tick for hours — this client polls every
+// 5s, so it was hammering Postgres with an expensive introspection query
+// continuously, which very likely contributed to the broader slowness seen
+// elsewhere in this environment. /auth/v1/health does no database query at
+// all (confirmed: responds in under 200ms).
 async function probeReachable(): Promise<boolean> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !anonKey) return true
+  if (!url) return true
   try {
-    await fetch(`${url}/rest/v1/`, {
-      headers: { apikey: anonKey },
+    await fetch(`${url}/auth/v1/health`, {
       signal: AbortSignal.timeout(3000),
       cache: 'no-store',
     })
