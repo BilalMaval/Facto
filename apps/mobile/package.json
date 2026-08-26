@@ -1,0 +1,16 @@
+{
+  "name": "mobile",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "cap": "cap"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7",
+    "@capacitor/core": "^7",
+    "@capacitor/ios": "^7"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7"
+  }
+}
