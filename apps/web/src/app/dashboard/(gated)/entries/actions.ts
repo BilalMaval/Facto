@@ -185,7 +185,9 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
       revalidatePath('/dashboard')
       return { success: true }
     }
-    return { error: error.message, networkError: status === 0 }
+    // See isRetryableStatus above and the FormState comment for why this
+    // isn't just `status === 0`.
+    return { error: error.message, networkError: isRetryableStatus(status) }
   }
 
   revalidatePath('/dashboard/entries')
