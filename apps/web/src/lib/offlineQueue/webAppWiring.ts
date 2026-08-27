@@ -149,9 +149,39 @@ export function dismissConflict(id: string) {
 // continuously, which very likely contributed to the broader slowness seen
 // elsewhere in this environment. /auth/v1/health does no database query at
 // all (confirmed: responds in under 200ms).
+// NEXT_PUBLIC_SUPABASE_URL is baked in at build time as a loopback address
+// (127.0.0.1) for local dev — correct for a plain browser tab or Tauri
+// (both load this app from that same host's "localhost"), but wrong inside
+// Capacitor on a device/emulator: the WebView loads this page from a
+// different host (10.0.2.2 for the Android emulator, a LAN IP for a real
+// device — see capacitor.config.ts), and 127.0.0.1 from *there* means the
+// device itself, not the machine running Supabase. Confirmed empirically:
+// login/Server Actions worked fine (they run on the dev server, which
+// really is at 127.0.0.1 from its own perspective), but this probe always
+// reported unreachable on a real Android emulator, permanently stuck
+// showing "Offline" and disabling the Sync now button regardless of
+// Supabase's actual state. Rewriting the probe's host to match the page's
+// own origin whenever the configured host is a loopback address different
+// from where the page was actually loaded fixes this generically for any
+// native shell, without touching the Tauri/browser path (both already load
+// from a loopback origin, so the condition below never fires for them).
+function resolveReachabilityUrl(configuredUrl: string): string {
+  try {
+    const target = new URL(configuredUrl)
+    const isLoopback = (host: string) => host === '127.0.0.1' || host === 'localhost'
+    if (isLoopback(target.hostname) && !isLoopback(window.location.hostname)) {
+      target.hostname = window.location.hostname
+    }
+    return target.toString().replace(/\/$/, '')
+  } catch {
+    return configuredUrl
+  }
+}
+
 async function probeReachable(): Promise<boolean> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  if (!url) return true
+  const configuredUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!configuredUrl) return true
+  const url = resolveReachabilityUrl(configuredUrl)
   try {
     await fetch(`${url}/auth/v1/health`, {
       signal: AbortSignal.timeout(3000),

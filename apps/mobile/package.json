@@ -3,14 +3,18 @@
   "private": true,
   "version": "0.1.0",
   "scripts": {
-    "cap": "cap"
+    "cap": "cap",
+    "sync:dev": "cross-env FACTO_MOBILE_ENV=development cap sync android",
+    "sync:prod": "cap sync android"
   },
   "dependencies": {
     "@capacitor/android": "^7",
     "@capacitor/core": "^7",
-    "@capacitor/ios": "^7"
+    "@capacitor/ios": "^7",
+    "@capacitor/preferences": "^7"
   },
   "devDependencies": {
-    "@capacitor/cli": "^7"
+    "@capacitor/cli": "^7",
+    "cross-env": "^10"
   }
 }

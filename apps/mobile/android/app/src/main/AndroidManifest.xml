@@ -2,13 +2,16 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!--
-      usesCleartextTraffic is required for capacitor.config.ts's plain-http
-      server.url (the local Next.js dev server, "Model A" — see that file's
-      comment). Android 9+ (API 28+) blocks cleartext HTTP at the OS level by
-      default regardless of Capacitor's own `cleartext: true` config; `cap
-      sync` does not add this attribute automatically, so it's set here by
-      hand. Not touched by future `cap sync` runs — that only copies web
-      assets and capacitor.config.json, not this file.
+      No usesCleartextTraffic here — this app never sets it directly at all.
+      Capacitor's own `cap sync` writes it into the generated
+      capacitor-cordova-android-plugins module's manifest at sync time,
+      driven straight from capacitor.config.ts's server.cleartext value
+      (confirmed by reading @capacitor/cli's cordova.js) — true only when
+      that file's dev path is selected (FACTO_MOBILE_ENV=development),
+      absent for the production path. See capacitor.config.ts for the full
+      explanation and the one manual step this implies: always run
+      `npm run sync:prod` right before building a release APK, since this
+      is baked in at sync time, not at Gradle build-variant time.
     -->
     <application
         android:allowBackup="true"
@@ -16,7 +19,6 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
         android:theme="@style/AppTheme">
 
         <activity
