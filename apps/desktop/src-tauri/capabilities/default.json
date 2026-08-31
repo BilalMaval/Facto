@@ -1,10 +1,10 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Capability for the main window",
+  "description": "Capability for the main window. remote.urls must cover whatever origin tauri.conf.json's window actually loads, or the webview gets zero Tauri permissions (including store:default — the offline queue's Tauri Store adapter would silently stop working). scripts/check-production-config.mjs verifies this stays true before every production build. The second entry below is a placeholder (RFC 2606 .invalid, never resolves) until a real production domain is chosen — update it, alongside tauri.conf.json's PRODUCTION_APP_URL equivalent, at that point; do not remove the localhost entry, it's still needed for local dev.",
   "windows": ["main"],
   "remote": {
-    "urls": ["http://localhost:3001/*"]
+    "urls": ["http://localhost:3001/*", "https://production-domain-not-set.invalid/*"]
   },
   "permissions": [
     "core:default",

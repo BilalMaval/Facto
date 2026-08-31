@@ -1,5 +1,26 @@
 apply plugin: 'com.android.application'
 
+// ---- Release signing ----
+// Credentials come from environment variables first (so CI never needs a
+// checked-in file), falling back to a local, gitignored
+// keystore.properties (see keystore.properties.example for the expected
+// format and android/RELEASE_SIGNING.md for the full setup). No keystore or
+// credential is committed anywhere in this repo — releaseSigningConfigured
+// below is false until one of these two sources actually supplies all four
+// values, and checkReleaseSigningConfigured (bottom of this file) refuses
+// to let assembleRelease/bundleRelease proceed while that's true, so an
+// unsigned release can never be produced by accident.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystorePropertiesFile.withInputStream { keystoreProperties.load(it) }
+}
+def releaseStoreFile = System.getenv('FACTO_ANDROID_KEYSTORE_PATH') ?: keystoreProperties.getProperty('storeFile')
+def releaseStorePassword = System.getenv('FACTO_ANDROID_KEYSTORE_PASSWORD') ?: keystoreProperties.getProperty('storePassword')
+def releaseKeyAlias = System.getenv('FACTO_ANDROID_KEY_ALIAS') ?: keystoreProperties.getProperty('keyAlias')
+def releaseKeyPassword = System.getenv('FACTO_ANDROID_KEY_PASSWORD') ?: keystoreProperties.getProperty('keyPassword')
+def releaseSigningConfigured = releaseStoreFile && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace "com.facto.mobile"
     compileSdk rootProject.ext.compileSdkVersion
@@ -16,10 +37,108 @@ android {
             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (releaseSigningConfigured) {
+                storeFile rootProject.file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // checkReleaseSigningConfigured (below) always runs before this
+            // build type can be assembled, so by the time this is actually
+            // used, releaseSigningConfigured is guaranteed true.
+            signingConfig signingConfigs.release
+        }
+    }
+}
+
+// ---- Release-build guards ----
+// Both found and reproduced for real during this project's
+// production-readiness audit: assembleRelease previously succeeded while
+// silently (a) shipping the last dev sync's localhost/cleartext config, and
+// (b) producing an unsigned APK. Neither is possible to detect just by
+// looking at the Gradle build type name, since Capacitor's config is baked
+// in at `cap sync` time (a separate step), not at Gradle build-variant
+// time — these tasks are the enforcement that closes both gaps. They only
+// ever attach to the release variant (see the preBuild hook below), never
+// debug.
+
+task checkProductionCapacitorConfig {
+    doLast {
+        def configFile = file('src/main/assets/capacitor.config.json')
+        if (!configFile.exists()) {
+            throw new GradleException(
+                "Refusing to build release: ${configFile} not found. Run " +
+                "'npm run sync:prod' from apps/mobile before building a release."
+            )
+        }
+        def config = new groovy.json.JsonSlurper().parseText(configFile.text)
+        def url = config.server?.url as String
+        def problems = []
+        if (!url) {
+            problems << 'no server.url is set in the synced config'
+        } else {
+            if (!url.startsWith('https://')) problems << "server.url (\"${url}\") is not HTTPS"
+            if (url.contains('localhost') || url.contains('10.0.2.2') || url.contains('127.0.0.1')) {
+                problems << "server.url (\"${url}\") points at a local development host"
+            }
+        }
+        if (config.server?.cleartext == true) {
+            problems << 'server.cleartext is enabled'
+        }
+        def cordovaManifest = file('../capacitor-cordova-android-plugins/src/main/AndroidManifest.xml')
+        if (cordovaManifest.exists() && cordovaManifest.text.contains('usesCleartextTraffic')) {
+            problems << 'the generated Cordova plugins manifest still has usesCleartextTraffic set (stale development sync)'
+        }
+        if (!problems.isEmpty()) {
+            throw new GradleException(
+                'Refusing to build release — development configuration detected:\n' +
+                problems.collect { "  - ${it}" }.join('\n') +
+                "\n\nRun 'npm run sync:prod' from apps/mobile (with PRODUCTION_APP_URL set " +
+                'in capacitor.config.ts) before building a release, then rebuild.'
+            )
+        }
+    }
+}
+
+task checkReleaseSigningConfigured {
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                'Refusing to build release: no signing credentials configured.\n\n' +
+                'Set these environment variables (recommended for CI):\n' +
+                '  FACTO_ANDROID_KEYSTORE_PATH, FACTO_ANDROID_KEYSTORE_PASSWORD,\n' +
+                '  FACTO_ANDROID_KEY_ALIAS, FACTO_ANDROID_KEY_PASSWORD\n\n' +
+                '...or create apps/mobile/android/keystore.properties (gitignored) — ' +
+                'see keystore.properties.example for the expected format.\n\n' +
+                'No release keystore exists yet. See apps/mobile/android/RELEASE_SIGNING.md.'
+            )
+        }
+    }
+}
+
+// Hooked onto the release variant's own preBuild task, not onto
+// assembleRelease/bundleRelease by name — confirmed by direct testing that
+// naming the umbrella tasks was NOT enough: `./gradlew :app:packageRelease`
+// (a task assembleRelease itself depends on) bypassed both checks entirely,
+// since dependsOn on assembleRelease only orders things relative to
+// assembleRelease specifically, not relative to its sibling dependencies.
+// preBuild is the one task every other task in a variant's build
+// transitively depends on (it's the root of the whole per-variant task
+// graph in every AGP version) — anchoring here means there is no task name
+// belonging to the release variant, umbrella or granular, that can run
+// without these two having already succeeded.
+android.applicationVariants.all { variant ->
+    if (variant.buildType.name == 'release') {
+        variant.preBuildProvider.configure { t ->
+            t.dependsOn(checkProductionCapacitorConfig, checkReleaseSigningConfigured)
         }
     }
 }

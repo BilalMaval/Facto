@@ -13,7 +13,7 @@
         "title": "Facto",
         "width": 1280,
         "height": 800,
-        "url": "http://localhost:3001"
+        "url": "https://production-domain-not-set.invalid"
       }
     ],
     "security": {

@@ -4,7 +4,9 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "build": "node scripts/check-production-config.mjs && tauri build"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2"
