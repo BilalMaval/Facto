@@ -1,15 +1,10 @@
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { AdminFilterBar } from '@/app/admin/AdminFilterBar'
 import { WorkCodeForm } from './WorkCodeForm'
 import { WorkCodeRow } from './WorkCodeRow'
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-]
 
 export default async function WorkCodesPage({
   searchParams,
@@ -17,6 +12,7 @@ export default async function WorkCodesPage({
   searchParams: Promise<{ error?: string; q?: string; status?: string }>
 }) {
   const { error, q = '', status = '' } = await searchParams
+  const t = await getTranslations('workCodes')
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -24,6 +20,12 @@ export default async function WorkCodesPage({
   if (membership.role !== 'owner' && membership.role !== 'admin') redirect('/dashboard')
 
   const org = membership.organization
+
+  const STATUS_OPTIONS = [
+    { value: '', label: t('allStatuses') },
+    { value: 'active', label: t('active') },
+    { value: 'inactive', label: t('inactive') },
+  ]
 
   const supabase = await createClient()
   const { data: allWorkCodes } = await supabase
@@ -41,9 +43,9 @@ export default async function WorkCodesPage({
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Work codes</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        The price list staff use to log daily output for {org.name}.
+        {t('subtitle', { orgName: org.name })}
       </p>
 
       {error && (
@@ -53,11 +55,11 @@ export default async function WorkCodesPage({
       <AdminFilterBar
         basePath="/dashboard/work-codes"
         q={q}
-        searchPlaceholder="Search by code or description…"
-        selects={[{ name: 'status', label: 'Status', value: status, options: STATUS_OPTIONS }]}
+        searchPlaceholder={t('searchPlaceholder')}
+        selects={[{ name: 'status', label: t('filterStatus'), value: status, options: STATUS_OPTIONS }]}
         suggestions={(allWorkCodes ?? []).map((wc) => ({
           value: wc.code,
-          label: `${wc.code} — ${wc.description}` + (wc.is_active ? '' : ' (inactive)'),
+          label: `${wc.code} — ${wc.description}` + (wc.is_active ? '' : t('inactiveSuffix')),
         }))}
       />
 
@@ -68,7 +70,7 @@ export default async function WorkCodesPage({
       <div className="mt-6 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm">
         {!workCodes.length && (
           <p className="py-4 text-sm text-zinc-400">
-            {allWorkCodes?.length ? 'No work codes match these filters.' : 'No work codes yet.'}
+            {allWorkCodes?.length ? t('noneMatchFilters') : t('noneYet')}
           </p>
         )}
         {workCodes.map((wc) => (

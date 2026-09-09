@@ -2,19 +2,26 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
+import { requireOrgRole } from '@/lib/session'
+import { uploadObject } from '@/lib/storage/r2'
 
 export type FormState = { error?: string; success?: boolean } | null
 
-function friendlyMessage(error: { code?: string; message: string }) {
+// t is the root translator (no namespace) so this can reach both
+// workers.errors.* and common.genericError — the raw driver message is never
+// shown to the user, since it can't be translated and often leaks SQL detail.
+async function friendlyMessage(error: { code?: string; message: string }) {
+  const t = await getTranslations()
   if (error.code === '23505') {
-    if (error.message.includes('cnic')) return 'A worker with that CNIC already exists.'
-    return 'A worker with that worker ID already exists.'
+    if (error.message.includes('cnic')) return t('workers.errors.cnicTaken')
+    return t('workers.errors.workerIdTaken')
   }
   if (error.code === '23514' && error.message.includes('weekly_salary')) {
-    return 'Weekly salary is required for salary/hybrid workers.'
+    return t('workers.errors.weeklySalaryRequired')
   }
-  return error.message
+  return t('common.genericError')
 }
 
 function normalizeCnic(raw: string) {
@@ -65,6 +72,7 @@ export async function checkCnicAvailable(organizationId: string, cnic: string, e
 }
 
 export async function createWorker(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const workerCode = String(formData.get('workerCode') ?? '').trim()
   const name = String(formData.get('name') ?? '').trim()
@@ -81,13 +89,13 @@ export async function createWorker(_prevState: FormState, formData: FormData): P
   const weeklySalary = weeklySalaryRaw ? Number(weeklySalaryRaw) : null
 
   if (!name || !cnic) {
-    return { error: 'Name and CNIC are required' }
+    return { error: t('workers.errors.nameAndCnicRequired') }
   }
   if (cnic.length !== 13) {
-    return { error: 'Enter a valid 13-digit CNIC' }
+    return { error: t('workers.form.cnicInvalid') }
   }
   if (employmentType !== 'contract' && !(weeklySalary && weeklySalary > 0)) {
-    return { error: 'Enter a weekly salary for salary/hybrid workers' }
+    return { error: t('workers.errors.weeklySalaryRequiredShort') }
   }
 
   const supabase = await createClient()
@@ -107,7 +115,7 @@ export async function createWorker(_prevState: FormState, formData: FormData): P
   })
 
   if (error) {
-    return { error: friendlyMessage(error) }
+    return { error: await friendlyMessage(error) }
   }
 
   revalidatePath('/dashboard/workers')
@@ -118,6 +126,7 @@ export async function createWorker(_prevState: FormState, formData: FormData): P
 // underlying UPDATE to the owner only; admin can't reach this even if they
 // somehow submit the (owner-only-rendered) form.
 export async function updateWorker(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const id = String(formData.get('id') ?? '')
   const workerCode = String(formData.get('workerCode') ?? '').trim()
   const name = String(formData.get('name') ?? '').trim()
@@ -129,10 +138,10 @@ export async function updateWorker(_prevState: FormState, formData: FormData): P
   const dateOfBirth = String(formData.get('dateOfBirth') ?? '').trim()
 
   if (!name || !cnic) {
-    return { error: 'Name and CNIC are required' }
+    return { error: t('workers.errors.nameAndCnicRequired') }
   }
   if (cnic.length !== 13) {
-    return { error: 'Enter a valid 13-digit CNIC' }
+    return { error: t('workers.form.cnicInvalid') }
   }
 
   const supabase = await createClient()
@@ -151,7 +160,7 @@ export async function updateWorker(_prevState: FormState, formData: FormData): P
     .eq('id', id)
 
   if (error) {
-    return { error: friendlyMessage(error) }
+    return { error: await friendlyMessage(error) }
   }
 
   revalidatePath('/dashboard/workers')
@@ -163,6 +172,7 @@ export async function updateWorker(_prevState: FormState, formData: FormData): P
 // type) rather than a plain table update, since RLS locks general worker
 // updates to the owner.
 export async function updateWorkerPaymentType(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const workerId = String(formData.get('workerId') ?? '')
   const employmentType = parseEmploymentType(formData.get('employmentType'))
@@ -170,7 +180,7 @@ export async function updateWorkerPaymentType(_prevState: FormState, formData: F
   const weeklySalary = weeklySalaryRaw ? Number(weeklySalaryRaw) : null
 
   if (employmentType !== 'contract' && !(weeklySalary && weeklySalary > 0)) {
-    return { error: 'Enter a weekly salary for salary/hybrid workers' }
+    return { error: t('workers.errors.weeklySalaryRequiredShort') }
   }
 
   const supabase = await createClient()
@@ -185,7 +195,7 @@ export async function updateWorkerPaymentType(_prevState: FormState, formData: F
   })
 
   if (error) {
-    return { error: error.message }
+    return { error: t('common.genericError') }
   }
 
   revalidatePath('/dashboard/workers')
@@ -194,6 +204,7 @@ export async function updateWorkerPaymentType(_prevState: FormState, formData: F
 }
 
 export async function toggleWorkerActive(formData: FormData) {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const id = String(formData.get('id') ?? '')
   const nextActive = formData.get('nextActive') === 'true'
@@ -206,7 +217,7 @@ export async function toggleWorkerActive(formData: FormData) {
   })
 
   if (error) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent(error.message)}`)
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard/workers')
@@ -215,30 +226,33 @@ export async function toggleWorkerActive(formData: FormData) {
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024
 
 export async function uploadWorkerPhoto(formData: FormData) {
+  const t = await getTranslations()
   const id = String(formData.get('id') ?? '')
   const organizationId = String(formData.get('organizationId') ?? '')
   const photo = formData.get('photo') as File | null
 
   if (!photo || photo.size === 0) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent('Choose a photo to upload')}`)
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('workers.errors.choosePhoto'))}`)
   }
   if (photo.size > MAX_PHOTO_BYTES) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent('Photo must be under 5MB')}`)
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('workers.errors.photoTooLarge'))}`)
   }
   if (!photo.type.startsWith('image/')) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent('File must be an image')}`)
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('workers.errors.fileMustBeImage'))}`)
+  }
+
+  if (!(await requireOrgRole(organizationId, ['owner', 'admin']))) {
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   const supabase = await createClient()
   const extension = photo.type.split('/')[1] || 'jpg'
   const path = `${organizationId}/${id}/photo.${extension}`
 
-  const { error: uploadError } = await supabase.storage
-    .from('worker-photos')
-    .upload(path, photo, { upsert: true, contentType: photo.type })
-
-  if (uploadError) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent(uploadError.message)}`)
+  try {
+    await uploadObject('worker-photos', path, photo)
+  } catch {
+    redirect(`/dashboard/workers?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   const { error: updateError } = await supabase
@@ -247,7 +261,7 @@ export async function uploadWorkerPhoto(formData: FormData) {
     .eq('id', id)
 
   if (updateError) {
-    redirect(`/dashboard/workers?error=${encodeURIComponent(friendlyMessage(updateError))}`)
+    redirect(`/dashboard/workers?error=${encodeURIComponent(await friendlyMessage(updateError))}`)
   }
 
   revalidatePath('/dashboard/workers')

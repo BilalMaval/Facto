@@ -2,18 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { addDays, dayAbbr, daySpan, formatDate, type DateFormat } from '@/lib/dates'
 import { formatMoney } from '@/lib/format'
 import { wrappedSaveAttendanceDay } from '@/lib/offlineQueue/webAppWiring'
 
 export type AttendanceStatus = 'present' | 'absent' | 'half_day' | 'holiday'
 
-const STATUS_LABELS: Record<AttendanceStatus, string> = {
-  present: 'Present',
-  absent: 'Absent',
-  half_day: 'Half-day',
-  holiday: 'Holiday',
-}
 const STATUS_DAY_VALUE: Record<AttendanceStatus, number> = {
   present: 1,
   absent: 0,
@@ -103,6 +98,14 @@ export function AttendanceGrid({
   // queued write reaches the server.
   canAutoSaveDefaults: boolean
 }) {
+  const t = useTranslations('slips.attendance')
+  const locale = useLocale()
+  const STATUS_LABELS: Record<AttendanceStatus, string> = {
+    present: t('statusPresent'),
+    absent: t('statusAbsent'),
+    half_day: t('statusHalfDay'),
+    holiday: t('statusHoliday'),
+  }
   // Normally 7, but a shortened week spanning a Week Start Day change (see
   // lib/dates.ts) has fewer — the grid itself and the per-day rate math
   // (weeklySalary / standardDaysPerWeek) work unchanged for a shorter span,
@@ -327,7 +330,7 @@ export function AttendanceGrid({
 
   return (
     <div className="mt-6">
-      <h3 className="text-sm font-semibold text-zinc-700">Attendance</h3>
+      <h3 className="text-sm font-semibold text-zinc-700">{t('title')}</h3>
       <div className="mt-2 overflow-x-auto print:overflow-visible">
         {/* table-fixed + explicit column widths so a value changing width as
             you type (an hours digit, a save-state badge) reflows only its
@@ -335,12 +338,12 @@ export function AttendanceGrid({
             kept resizing to fit whatever was momentarily longest. */}
         <table className="w-full min-w-[560px] table-fixed text-sm print:min-w-0">
           <thead>
-            <tr className="border-b border-zinc-300 text-left">
-              <th className="w-[8%] py-2 pr-2">Day</th>
-              <th className="w-[15%] py-2 pr-2">Date</th>
-              <th className="w-[22%] py-2 px-2">Status</th>
-              <th className="w-[35%] py-2 px-2">Overtime</th>
-              <th className="w-[20%] py-2 pl-2">Holiday wage</th>
+            <tr className="border-b border-zinc-300 text-start">
+              <th className="w-[8%] py-2 pe-2">{t('day')}</th>
+              <th className="w-[15%] py-2 pe-2">{t('date')}</th>
+              <th className="w-[22%] py-2 px-2">{t('status')}</th>
+              <th className="w-[35%] py-2 px-2">{t('overtime')}</th>
+              <th className="w-[20%] py-2 ps-2">{t('holidayWage')}</th>
             </tr>
           </thead>
           <tbody>
@@ -351,11 +354,11 @@ export function AttendanceGrid({
               const row = rows[i]
               return (
                 <tr key={d} className={`border-b border-zinc-100 ${isHolidayRow ? 'bg-sky-50/70' : ''}`}>
-                  <td className="py-2 pr-2">
-                    {dayAbbr(d)}
-                    {isHolidayRow && <span className="ml-1 text-[10px] font-medium text-sky-600">Day off</span>}
+                  <td className="py-2 pe-2">
+                    {dayAbbr(d, locale)}
+                    {isHolidayRow && <span className="ms-1 text-[10px] font-medium text-sky-600">{t('dayOff')}</span>}
                   </td>
-                  <td className="py-2 pr-2 whitespace-nowrap">{formatDate(d, dateFormat)}</td>
+                  <td className="py-2 pe-2 whitespace-nowrap">{formatDate(d, dateFormat, locale)}</td>
                   <td className="py-2 px-2">
                     {/* Printed slips show plain text regardless of edit
                         state — a <select>/<input> control prints as a form
@@ -398,14 +401,14 @@ export function AttendanceGrid({
                       }`}
                     >
                       {state === 'saving'
-                        ? 'Saving…'
+                        ? t('saving')
                         : state === 'saved'
-                          ? 'Saved'
+                          ? t('saved')
                           : state === 'queued'
-                            ? 'Saved locally'
+                            ? t('savedLocally')
                             : state === 'error'
-                              ? (errorByIndex[i] ?? 'Save failed')
-                              : 'Saved'}
+                              ? (errorByIndex[i] ?? t('saveFailed'))
+                              : t('saved')}
                     </span>
                   </td>
                   <td className="py-2 px-2">
@@ -420,16 +423,16 @@ export function AttendanceGrid({
                               value={row.overtimeWage}
                               onChange={(e) => handleNumberChange(i, 'overtimeWage', e.target.value)}
                               onBlur={() => handleNumberBlur(i)}
-                              placeholder="Amount"
+                              placeholder={t('amountPlaceholder')}
                               className="w-24 rounded-md border border-zinc-300 px-2 py-1 text-sm"
                             />
-                            <span className="text-[10px] font-medium text-amber-600">Custom</span>
+                            <span className="text-[10px] font-medium text-amber-600">{t('custom')}</span>
                             <button
                               type="button"
                               onClick={() => handleOvertimeModeToggle(i, false)}
                               className="text-[10px] text-zinc-400 underline hover:text-zinc-600"
                             >
-                              Use hours
+                              {t('useHours')}
                             </button>
                           </div>
                         ) : (
@@ -444,33 +447,33 @@ export function AttendanceGrid({
                               className="w-16 rounded-md border border-zinc-300 px-2 py-1 text-sm"
                             />
                             <span className="min-w-[64px] shrink-0 text-[10px] whitespace-nowrap tabular-nums text-zinc-400">
-                              hrs = {formatMoney(overtimeAmountFor(row), currency, showDecimals)}
+                              {t('hrsEqualsAmount', { amount: formatMoney(overtimeAmountFor(row), currency, showDecimals) })}
                             </span>
                             <button
                               type="button"
                               onClick={() => handleOvertimeModeToggle(i, true)}
                               className="text-[10px] text-zinc-400 underline hover:text-zinc-600"
                             >
-                              Custom
+                              {t('custom')}
                             </button>
                           </div>
                         )
                       ) : row.overtimeCustom ? (
                         <>
                           {formatMoney(row.overtimeWage, currency, showDecimals)}{' '}
-                          <span className="text-[10px] font-medium text-amber-600">Custom</span>
+                          <span className="text-[10px] font-medium text-amber-600">{t('custom')}</span>
                         </>
                       ) : (
-                        `${row.overtimeHours} hrs = ${formatMoney(overtimeAmountFor(row), currency, showDecimals)}`
+                        t('hrsFormat', { hours: row.overtimeHours, amount: formatMoney(overtimeAmountFor(row), currency, showDecimals) })
                       )}
                     </span>
                     <span className="hidden print:inline">
                       {row.overtimeCustom
-                        ? `${formatMoney(row.overtimeWage, currency, showDecimals)} (Custom)`
-                        : `${row.overtimeHours} hrs = ${formatMoney(overtimeAmountFor(row), currency, showDecimals)}`}
+                        ? t('hrsFormatCustom', { amount: formatMoney(row.overtimeWage, currency, showDecimals) })
+                        : t('hrsFormat', { hours: row.overtimeHours, amount: formatMoney(overtimeAmountFor(row), currency, showDecimals) })}
                     </span>
                   </td>
-                  <td className="py-2 pl-2">
+                  <td className="py-2 ps-2">
                     <span className="print:hidden">
                       {isHolidayRow && row.status === 'present' ? (
                         editable ? (
@@ -481,7 +484,7 @@ export function AttendanceGrid({
                             value={row.holidayWage}
                             onChange={(e) => handleNumberChange(i, 'holidayWage', e.target.value)}
                             onBlur={() => handleNumberBlur(i)}
-                            placeholder="Wage for this day"
+                            placeholder={t('wageForDay')}
                             className="w-32 rounded-md border border-zinc-300 px-2 py-1 text-sm"
                           />
                         ) : (
@@ -505,28 +508,26 @@ export function AttendanceGrid({
       <p className="mt-2 text-xs text-zinc-500">
         {anyPersisted ? (
           <>
-            Days present: {regularDaysSum} / {standardDaysPerWeek} standard · Overtime:{' '}
-            {formatMoney(overtimeAmountSum, currency, showDecimals)}
-            {holidayWageValue > 0 && (
-              <> · Holiday pay: {formatMoney(holidayWageValue, currency, showDecimals)}</>
-            )}{' '}
-            · Salary component: {formatMoney(salaryComponent, currency, showDecimals)}
+            {t('summary', {
+              present: regularDaysSum,
+              standard: standardDaysPerWeek,
+              overtime: formatMoney(overtimeAmountSum, currency, showDecimals),
+            })}
+            {holidayWageValue > 0 && t('holidayPaySuffix', { amount: formatMoney(holidayWageValue, currency, showDecimals) })}
+            {t('salaryComponentSuffix', { amount: formatMoney(salaryComponent, currency, showDecimals) })}
           </>
         ) : (
-          <>
-            No attendance marked yet this week — salary component defaults to the full weekly salary:{' '}
-            {formatMoney(salaryComponent, currency, showDecimals)}
-          </>
+          t('noAttendanceYet', { amount: formatMoney(salaryComponent, currency, showDecimals) })
         )}
       </p>
 
       {weekFinalized ? (
         <p className="mt-1 text-xs text-zinc-400 print:hidden">
-          This week is finalized — reopen it to edit attendance.
+          {t('weekFinalizedNotice')}
         </p>
       ) : anyLockedByDayRule ? (
         <p className="mt-1 text-xs text-zinc-400 print:hidden">
-          Only today&apos;s attendance can be marked here. Past days can be edited by the business owner.
+          {t('todayOnlyNotice')}
         </p>
       ) : null}
     </div>

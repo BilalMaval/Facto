@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { WorkerSearchSelect } from '../_components/WorkerSearchSelect'
 import { setPreferenceCookie } from '@/lib/clientCookie'
 
@@ -14,6 +15,7 @@ export function DashboardWorkerSelector({
   workerId?: string
 }) {
   const router = useRouter()
+  const t = useTranslations('dashboardHome')
 
   function handleChange(id: string) {
     // Remembered so the plain "Dashboard" nav link (no query params) still
@@ -29,7 +31,7 @@ export function DashboardWorkerSelector({
       workers={workers}
       value={workerId ?? ''}
       onChange={handleChange}
-      placeholder="Search a worker to start logging…"
+      placeholder={t('workerSearchPlaceholder')}
       allowAll={false}
     />
   )

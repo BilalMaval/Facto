@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useRef, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { submitPaymentProof, type FormState } from './actions'
 import { today, type DateFormat } from '@/lib/dates'
 import { compressImage } from '@/lib/compressImage'
@@ -39,6 +40,7 @@ export function PaymentForm({
   successMessage?: string
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('billing.form')
   const [state, formAction, pending] = useActionState(submitPaymentProof, initialState)
   const [formGeneration, setFormGeneration] = useState(0)
   const [paymentDate, setPaymentDate] = useState(today())
@@ -49,9 +51,9 @@ export function PaymentForm({
   }
 
   const availableMethods: { value: Method; label: string }[] = [
-    settings.easypaisa_number ? { value: 'easypaisa' as const, label: 'Easypaisa' } : null,
-    settings.jazzcash_number ? { value: 'jazzcash' as const, label: 'JazzCash' } : null,
-    settings.bank_account_number ? { value: 'bank_transfer' as const, label: 'Bank transfer' } : null,
+    settings.easypaisa_number ? { value: 'easypaisa' as const, label: t('easypaisa') } : null,
+    settings.jazzcash_number ? { value: 'jazzcash' as const, label: t('jazzcash') } : null,
+    settings.bank_account_number ? { value: 'bank_transfer' as const, label: t('bankTransfer') } : null,
   ].filter((m): m is { value: Method; label: string } => m !== null)
 
   const [method, setMethod] = useState<Method | ''>(availableMethods[0]?.value ?? '')
@@ -81,8 +83,7 @@ export function PaymentForm({
   if (state?.success) {
     return (
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-        {successMessage ??
-          "Payment submitted — we'll review it and activate your account shortly. You can track its status below."}
+        {successMessage ?? t('defaultSuccessMessage')}
       </div>
     )
   }
@@ -90,7 +91,7 @@ export function PaymentForm({
   if (!availableMethods.length) {
     return (
       <p className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-500">
-        Payment methods aren&apos;t configured yet. Please check back shortly.
+        {t('methodsNotConfigured')}
       </p>
     )
   }
@@ -107,7 +108,7 @@ export function PaymentForm({
       {state?.error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>}
 
       <div>
-        <span className="block text-sm font-medium">Payment method</span>
+        <span className="block text-sm font-medium">{t('paymentMethod')}</span>
         <div className="mt-2 grid gap-2 sm:grid-cols-3">
           {availableMethods.map((m) => (
             <label
@@ -132,11 +133,11 @@ export function PaymentForm({
         <div className="space-y-1 rounded-md bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">
           {settings.easypaisa_title && (
             <p>
-              Account title: <span className="font-medium">{settings.easypaisa_title}</span>
+              {t('accountTitle')} <span className="font-medium">{settings.easypaisa_title}</span>
             </p>
           )}
           <p>
-            Easypaisa number: <span className="font-medium">{settings.easypaisa_number}</span>
+            {t('easypaisaNumber')} <span className="font-medium">{settings.easypaisa_number}</span>
           </p>
           {settings.easypaisa_note && (
             <p className="border-t border-zinc-200 pt-1.5 text-zinc-600">{settings.easypaisa_note}</p>
@@ -147,11 +148,11 @@ export function PaymentForm({
         <div className="space-y-1 rounded-md bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">
           {settings.jazzcash_title && (
             <p>
-              Account title: <span className="font-medium">{settings.jazzcash_title}</span>
+              {t('accountTitle')} <span className="font-medium">{settings.jazzcash_title}</span>
             </p>
           )}
           <p>
-            JazzCash number: <span className="font-medium">{settings.jazzcash_number}</span>
+            {t('jazzcashNumber')} <span className="font-medium">{settings.jazzcash_number}</span>
           </p>
           {settings.jazzcash_note && (
             <p className="border-t border-zinc-200 pt-1.5 text-zinc-600">{settings.jazzcash_note}</p>
@@ -162,20 +163,20 @@ export function PaymentForm({
         <div className="space-y-1 rounded-md bg-zinc-50 px-3 py-2.5 text-sm text-zinc-700">
           {settings.bank_name && (
             <p>
-              Bank: <span className="font-medium">{settings.bank_name}</span>
+              {t('bankLabel')} <span className="font-medium">{settings.bank_name}</span>
             </p>
           )}
           {settings.bank_account_title && (
             <p>
-              Account title: <span className="font-medium">{settings.bank_account_title}</span>
+              {t('accountTitle')} <span className="font-medium">{settings.bank_account_title}</span>
             </p>
           )}
           <p>
-            Account number: <span className="font-medium">{settings.bank_account_number}</span>
+            {t('accountNumber')} <span className="font-medium">{settings.bank_account_number}</span>
           </p>
           {settings.bank_iban && (
             <p>
-              IBAN: <span className="font-medium">{settings.bank_iban}</span>
+              {t('iban')} <span className="font-medium">{settings.bank_iban}</span>
             </p>
           )}
           {settings.bank_note && (
@@ -187,7 +188,7 @@ export function PaymentForm({
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label htmlFor="amount" className="block text-sm font-medium">
-            Amount paid (Rs.)
+            {t('amountPaidLabel')}
           </label>
           <input
             id="amount"
@@ -202,7 +203,7 @@ export function PaymentForm({
         </div>
         <div>
           <label htmlFor="paymentDate" className="block text-sm font-medium">
-            Date paid
+            {t('datePaidLabel')}
           </label>
           <DatePicker
             id="paymentDate"
@@ -218,20 +219,20 @@ export function PaymentForm({
 
       <div>
         <label htmlFor="transactionReference" className="block text-sm font-medium">
-          Transaction ID / reference
+          {t('transactionRefLabel')}
         </label>
         <input
           id="transactionReference"
           name="transactionReference"
           type="text"
           required
-          placeholder="e.g. TXN123456789"
+          placeholder={t('transactionRefPlaceholder')}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
       </div>
 
       <div>
-        <span className="block text-sm font-medium">Payment screenshot</span>
+        <span className="block text-sm font-medium">{t('screenshotLabel')}</span>
         <input
           ref={fileInputRef}
           id="proof"
@@ -248,10 +249,10 @@ export function PaymentForm({
             onClick={() => fileInputRef.current?.click()}
             className="flex-shrink-0 rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
-            Choose file
+            {t('chooseFile')}
           </button>
           <span className="truncate text-sm text-zinc-500">
-            {compressing ? 'Compressing…' : (proofFileName ?? 'No file chosen')}
+            {compressing ? t('compressing') : (proofFileName ?? t('noFileChosen'))}
           </span>
         </div>
       </div>
@@ -261,7 +262,7 @@ export function PaymentForm({
         disabled={pending}
         className="w-full rounded-md bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Submitting…' : 'Submit payment'}
+        {pending ? t('submitting') : t('submitPayment')}
       </button>
     </form>
   )

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 export function InviteLinkButton({ token }: { token: string }) {
+  const t = useTranslations('team')
   const [copied, setCopied] = useState(false)
 
   async function copyLink() {
@@ -18,7 +20,7 @@ export function InviteLinkButton({ token }: { token: string }) {
       onClick={copyLink}
       className="text-sm text-zinc-600 underline hover:text-zinc-900"
     >
-      {copied ? 'Copied!' : 'Copy invite link'}
+      {copied ? t('copied') : t('copyInviteLink')}
     </button>
   )
 }

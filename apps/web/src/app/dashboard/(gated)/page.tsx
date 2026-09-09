@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -31,6 +32,10 @@ export default async function DashboardPage({
   searchParams: Promise<{ workerId?: string; error?: string }>
 }) {
   const { workerId: workerIdParam, error } = await searchParams
+  const t = await getTranslations('dashboardHome')
+  const tc = await getTranslations('common')
+  const te = await getTranslations('entries')
+  const locale = await getLocale()
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -172,7 +177,7 @@ export default async function DashboardPage({
     <div className="mx-auto w-full max-w-6xl px-4 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">{org.name}</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        Pick a worker to log today&apos;s work or payments and watch their weekly report update live.
+        {t('subtitle')}
       </p>
 
       {error && (
@@ -187,7 +192,7 @@ export default async function DashboardPage({
         <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-[1fr_1.5fr]">
           <section className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
             <h2 className="text-sm font-semibold text-zinc-700">
-              Log work &amp; payments — {workerLabel(selectedWorker)}
+              {t('logWorkAndPayments', { worker: workerLabel(selectedWorker) })}
             </h2>
             <div className="mt-3 space-y-3">
               {selectedWorker.employment_type === 'salary' ? null : workCodes?.length ? (
@@ -200,7 +205,7 @@ export default async function DashboardPage({
                   dateFormat={org.date_format as DateFormat}
                 />
               ) : (
-                <p className="text-sm text-zinc-400">Add at least one active work code first.</p>
+                <p className="text-sm text-zinc-400">{t('addWorkCodeFirst')}</p>
               )}
               <PaymentForm
                 key={selectedWorker.id}
@@ -242,24 +247,27 @@ export default async function DashboardPage({
               standardHoursPerDay={org.standard_hours_per_day}
               overtimeRateMultiplier={org.overtime_rate_multiplier}
               embedded
-              heading="This week's report"
+              heading={t('weeklyReportHeading')}
             />
           </section>
         </div>
       ) : (
         <p className="mt-6 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
-          No worker selected yet.
+          {t('noWorkerSelected')}
         </p>
       )}
 
       <div className="mt-12 border-t border-zinc-200 pt-8">
         <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
           <p className="text-sm text-zinc-500">
-            This week&apos;s payroll ({formatDate(weekStart, org.date_format as DateFormat)} to{' '}
-            {formatDate(weekEnd, org.date_format as DateFormat)})
+            {t('weeklyPayrollLabel', {
+              start: formatDate(weekStart, org.date_format as DateFormat, locale),
+              end: formatDate(weekEnd, org.date_format as DateFormat, locale),
+              to: tc('dateRangeTo'),
+            })}
           </p>
           {payrollUnavailable ? (
-            <p className="mt-1 text-sm text-zinc-400">Can&apos;t reach the server — figure unavailable.</p>
+            <p className="mt-1 text-sm text-zinc-400">{t('payrollUnavailable')}</p>
           ) : (
             <p className="mt-1 text-3xl font-semibold tracking-tight">
               {formatMoney(weeklyPayroll, org.currency, org.show_decimals)}
@@ -269,9 +277,9 @@ export default async function DashboardPage({
 
         <div className="mt-8 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
           <div>
-            <h2 className="text-sm font-medium text-zinc-500">Workers with outstanding advances</h2>
+            <h2 className="text-sm font-medium text-zinc-500">{t('outstandingAdvancesHeading')}</h2>
             {!outstandingWorkers?.length && (
-              <p className="mt-2 text-sm text-zinc-400">No workers currently owe an advance.</p>
+              <p className="mt-2 text-sm text-zinc-400">{t('noOutstandingAdvances')}</p>
             )}
             <ul className="mt-2 divide-y divide-zinc-200">
               {outstandingWorkers?.map((w) => (
@@ -286,8 +294,8 @@ export default async function DashboardPage({
           </div>
 
           <div>
-            <h2 className="text-sm font-medium text-zinc-500">Recent entries</h2>
-            {!recentEntries?.length && <p className="mt-2 text-sm text-zinc-400">No entries yet.</p>}
+            <h2 className="text-sm font-medium text-zinc-500">{t('recentEntriesHeading')}</h2>
+            {!recentEntries?.length && <p className="mt-2 text-sm text-zinc-400">{t('noEntriesYet')}</p>}
             <ul className="mt-2 divide-y divide-zinc-200">
               {recentEntries?.map((e) => {
                 const worker = one<WorkerRef>(e.worker)
@@ -296,9 +304,9 @@ export default async function DashboardPage({
                   <li key={e.id} className="py-2 text-sm">
                     <p>{worker ? workerLabel(worker) : '—'}</p>
                     <p className="text-xs text-zinc-500">
-                      {formatDate(e.entry_date, org.date_format as DateFormat)} ·{' '}
-                      {formatTime(e.created_at, org.timezone)} · {workCode?.code} ({workCode?.description}) · qty{' '}
-                      {e.quantity} = {formatMoney(e.amount, org.currency, org.show_decimals)}
+                      {formatDate(e.entry_date, org.date_format as DateFormat, locale)} ·{' '}
+                      {formatTime(e.created_at, org.timezone, locale)} · {workCode?.code} ({workCode?.description}) · qty{' '}
+                      {e.quantity} = {formatMoney(e.amount, org.currency, org.show_decimals, locale)}
                     </p>
                   </li>
                 )
@@ -307,8 +315,8 @@ export default async function DashboardPage({
           </div>
 
           <div>
-            <h2 className="text-sm font-medium text-zinc-500">Recent payments</h2>
-            {!recentPayments?.length && <p className="mt-2 text-sm text-zinc-400">No payments logged yet.</p>}
+            <h2 className="text-sm font-medium text-zinc-500">{t('recentPaymentsHeading')}</h2>
+            {!recentPayments?.length && <p className="mt-2 text-sm text-zinc-400">{t('noPaymentsYet')}</p>}
             <ul className="mt-2 divide-y divide-zinc-200">
               {recentPayments?.map((p) => {
                 const worker = one<WorkerRef>(p.worker)
@@ -316,9 +324,9 @@ export default async function DashboardPage({
                   <li key={p.id} className="py-2 text-sm">
                     <p>{worker ? workerLabel(worker) : '—'}</p>
                     <p className="text-xs text-zinc-500">
-                      {formatDate(p.payment_date, org.date_format as DateFormat)} ·{' '}
-                      {formatTime(p.created_at, org.timezone)} · paid{' '}
-                      {formatMoney(p.amount, org.currency, org.show_decimals)}
+                      {formatDate(p.payment_date, org.date_format as DateFormat, locale)} ·{' '}
+                      {formatTime(p.created_at, org.timezone, locale)} · {te('paidLabel')}{' '}
+                      {formatMoney(p.amount, org.currency, org.show_decimals, locale)}
                       {p.note ? ` · ${p.note}` : ''}
                     </p>
                   </li>
@@ -353,6 +361,9 @@ async function WeekActivity({
   showDecimals: boolean
   canDelete: boolean
 }) {
+  const t = await getTranslations('dashboardHome')
+  const te = await getTranslations('entries')
+  const locale = await getLocale()
   const supabase = await createClient()
 
   // Filtered by when they were LOGGED (created_at), not the business date
@@ -385,7 +396,7 @@ async function WeekActivity({
   ])
 
   if (!entries?.length && !payments?.length) {
-    return <p className="mt-4 text-sm text-zinc-400">Nothing logged this week yet.</p>
+    return <p className="mt-4 text-sm text-zinc-400">{t('nothingLoggedThisWeek')}</p>
   }
 
   // Interleave entries and payments by the exact moment they were logged,
@@ -408,22 +419,22 @@ async function WeekActivity({
         >
           <span className="text-zinc-600">
             <span className="text-xs text-zinc-400">
-              {formatDate(e.entry_date, dateFormat)} · {formatTime(e.created_at, timezone)}
+              {formatDate(e.entry_date, dateFormat, locale)} · {formatTime(e.created_at, timezone, locale)}
             </span>{' '}
             {isPastWeek && (
               <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
-                Previous week
+                {t('previousWeekBadge')}
               </span>
             )}{' '}
-            {workCode?.code} · {e.quantity} × {formatMoney(e.rate_snapshot, currency, showDecimals)} ={' '}
-            <span className="font-medium text-zinc-900">{formatMoney(e.amount, currency, showDecimals)}</span>
+            {workCode?.code} · {e.quantity} × {formatMoney(e.rate_snapshot, currency, showDecimals, locale)} ={' '}
+            <span className="font-medium text-zinc-900">{formatMoney(e.amount, currency, showDecimals, locale)}</span>
           </span>
           {canDelete && (
             <form action={deleteEntry}>
               <input type="hidden" name="id" value={e.id} />
               <input type="hidden" name="returnTo" value="/dashboard" />
               <button type="submit" className="text-xs text-red-600 underline hover:text-red-800">
-                Delete
+                {te('delete')}
               </button>
             </form>
           )}
@@ -445,14 +456,14 @@ async function WeekActivity({
         >
           <span className="text-zinc-600">
             <span className="text-xs text-zinc-400">
-              {formatDate(p.payment_date, dateFormat)} · {formatTime(p.created_at, timezone)}
+              {formatDate(p.payment_date, dateFormat, locale)} · {formatTime(p.created_at, timezone, locale)}
             </span>{' '}
             {isPastWeek && (
               <span className="rounded-full bg-amber-200 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
-                Previous week
+                {t('previousWeekBadge')}
               </span>
             )}{' '}
-            Paid <span className="font-medium text-zinc-900">{formatMoney(p.amount, currency, showDecimals)}</span>
+            {te('paidLabel')} <span className="font-medium text-zinc-900">{formatMoney(p.amount, currency, showDecimals, locale)}</span>
             {p.note ? ` · ${p.note}` : ''}
           </span>
           {canDelete && (
@@ -460,7 +471,7 @@ async function WeekActivity({
               <input type="hidden" name="id" value={p.id} />
               <input type="hidden" name="returnTo" value="/dashboard" />
               <button type="submit" className="text-xs text-red-600 underline hover:text-red-800">
-                Delete
+                {te('delete')}
               </button>
             </form>
           )}
@@ -473,7 +484,7 @@ async function WeekActivity({
 
   return (
     <div className="mt-4 space-y-1">
-      <h3 className="text-xs font-medium text-zinc-500">This week&apos;s activity</h3>
+      <h3 className="text-xs font-medium text-zinc-500">{t('weekActivityHeading')}</h3>
       <ul className="divide-y divide-zinc-100">{rows.map((r) => r.node)}</ul>
     </div>
   )

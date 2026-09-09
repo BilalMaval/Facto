@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import type { FormState } from './actions'
 import { wrappedCreatePayment } from '@/lib/offlineQueue/webAppWiring'
 import { workerLabel } from '@/lib/format'
@@ -22,6 +23,7 @@ export function PaymentForm({
   workers: Worker[]
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('entries')
   const [state, formAction, pending] = useActionState(wrappedCreatePayment, initialState)
 
   const [paymentDate, setPaymentDate] = useState(today)
@@ -67,13 +69,13 @@ export function PaymentForm({
       )}
       {showQueuedBanner && (
         <p className="w-full rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Saved locally — will sync when back online.
+          {t('savedLocallyBanner')}
         </p>
       )}
 
       <div className="w-40">
         <label htmlFor="paymentDate" className="block text-sm font-medium">
-          Date
+          {t('form.dateLabel')}
         </label>
         <DatePicker
           id="paymentDate"
@@ -86,7 +88,7 @@ export function PaymentForm({
       </div>
       <div className="min-w-[180px] flex-1">
         <label htmlFor="paymentWorkerId" className="block text-sm font-medium">
-          Worker
+          {t('form.workerLabel')}
         </label>
         <select
           id="paymentWorkerId"
@@ -103,7 +105,7 @@ export function PaymentForm({
       </div>
       <div className="w-32">
         <label htmlFor="amount" className="block text-sm font-medium">
-          Amount paid
+          {t('payment.amountPaidLabel')}
         </label>
         <input
           key={fieldsGeneration}
@@ -118,11 +120,11 @@ export function PaymentForm({
           onBlur={() => setAmountTouched(true)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {amountInvalid && <p className="mt-1 text-xs text-red-600">Enter an amount greater than 0</p>}
+        {amountInvalid && <p className="mt-1 text-xs text-red-600">{t('payment.amountInvalid')}</p>}
       </div>
       <div className="min-w-[160px] flex-1">
         <label htmlFor="note" className="block text-sm font-medium">
-          Note (optional)
+          {t('payment.noteLabel')}
         </label>
         <input
           key={`note-${fieldsGeneration}`}
@@ -139,7 +141,7 @@ export function PaymentForm({
         disabled={pending}
         className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
       >
-        {pending ? 'Logging…' : 'Log payment'}
+        {pending ? t('payment.logging') : t('payment.logPayment')}
       </button>
     </form>
   )

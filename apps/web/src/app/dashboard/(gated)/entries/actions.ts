@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { isRetryableStatus } from '@/lib/supabase/retryableStatus'
@@ -86,6 +87,7 @@ async function resolveCountedWeekStart(
 }
 
 export async function createEntry(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const workerId = String(formData.get('workerId') ?? '')
   const entryDate = String(formData.get('entryDate') ?? '')
@@ -98,7 +100,7 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
   const clientId = formData.get('clientId')?.toString() || undefined
 
   if (!workerId || !entryDate || !workCodeId || !quantity) {
-    return { error: 'Worker, date, work code, and quantity are required' }
+    return { error: t('entries.errors.entryRequiredFields') }
   }
 
   const supabase = await createClient()
@@ -126,7 +128,7 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
     }
     // See isRetryableStatus above and the FormState comment for why this
     // isn't just `status === 0`.
-    return { error: error.message, networkError: isRetryableStatus(status) }
+    return { error: t('common.genericError'), networkError: isRetryableStatus(status) }
   }
 
   revalidatePath('/dashboard/entries')
@@ -135,6 +137,7 @@ export async function createEntry(_prevState: FormState, formData: FormData): Pr
 }
 
 export async function deleteEntry(formData: FormData) {
+  const t = await getTranslations()
   const id = String(formData.get('id') ?? '')
   const returnTo = String(formData.get('returnTo') ?? '/dashboard/entries')
 
@@ -142,7 +145,7 @@ export async function deleteEntry(formData: FormData) {
   const { error } = await supabase.from('work_entries').delete().eq('id', id)
 
   if (error) {
-    redirect(`${returnTo}?error=${encodeURIComponent(error.message)}`)
+    redirect(`${returnTo}?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard/entries')
@@ -150,6 +153,7 @@ export async function deleteEntry(formData: FormData) {
 }
 
 export async function createPayment(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const workerId = String(formData.get('workerId') ?? '')
   const paymentDate = String(formData.get('paymentDate') ?? '')
@@ -159,7 +163,7 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
   const clientId = formData.get('clientId')?.toString() || undefined
 
   if (!workerId || !paymentDate || !amount) {
-    return { error: 'Worker, date, and amount are required' }
+    return { error: t('entries.errors.paymentRequiredFields') }
   }
 
   const supabase = await createClient()
@@ -187,7 +191,7 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
     }
     // See isRetryableStatus above and the FormState comment for why this
     // isn't just `status === 0`.
-    return { error: error.message, networkError: isRetryableStatus(status) }
+    return { error: t('common.genericError'), networkError: isRetryableStatus(status) }
   }
 
   revalidatePath('/dashboard/entries')
@@ -196,6 +200,7 @@ export async function createPayment(_prevState: FormState, formData: FormData): 
 }
 
 export async function deletePayment(formData: FormData) {
+  const t = await getTranslations()
   const id = String(formData.get('id') ?? '')
   const returnTo = String(formData.get('returnTo') ?? '/dashboard/entries')
 
@@ -203,7 +208,7 @@ export async function deletePayment(formData: FormData) {
   const { error } = await supabase.from('payments').delete().eq('id', id)
 
   if (error) {
-    redirect(`${returnTo}?error=${encodeURIComponent(error.message)}`)
+    redirect(`${returnTo}?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard/entries')

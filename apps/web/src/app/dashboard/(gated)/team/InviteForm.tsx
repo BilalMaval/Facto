@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState, useTransition } from 'react'
+import { useTranslations } from 'next-intl'
 import { checkInviteEmailAvailable, inviteMember, type FormState } from './actions'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -9,6 +10,7 @@ type EmailStatus = 'idle' | 'checking' | 'available' | 'pending-exists'
 const initialState: FormState = null
 
 export function InviteForm({ organizationId }: { organizationId: string }) {
+  const t = useTranslations('team.form')
   const [state, formAction, pending] = useActionState(inviteMember, initialState)
 
   const [email, setEmail] = useState('')
@@ -58,7 +60,7 @@ export function InviteForm({ organizationId }: { organizationId: string }) {
 
       <div className="flex-1 min-w-[200px]">
         <label htmlFor="email" className="block text-sm font-medium">
-          Email
+          {t('emailLabel')}
         </label>
         <input
           id="email"
@@ -70,17 +72,17 @@ export function InviteForm({ organizationId }: { organizationId: string }) {
           onBlur={() => setTouched(true)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {emailEmpty && <p className="mt-1 text-xs text-red-600">Email is required</p>}
-        {emailFormatInvalid && <p className="mt-1 text-xs text-red-600">Enter a valid email address</p>}
-        {emailStatus === 'checking' && <p className="mt-1 text-xs text-zinc-400">Checking…</p>}
-        {emailStatus === 'available' && <p className="mt-1 text-xs text-emerald-600">Ready to invite</p>}
+        {emailEmpty && <p className="mt-1 text-xs text-red-600">{t('emailRequired')}</p>}
+        {emailFormatInvalid && <p className="mt-1 text-xs text-red-600">{t('emailInvalid')}</p>}
+        {emailStatus === 'checking' && <p className="mt-1 text-xs text-zinc-400">{t('checking')}</p>}
+        {emailStatus === 'available' && <p className="mt-1 text-xs text-emerald-600">{t('readyToInvite')}</p>}
         {emailStatus === 'pending-exists' && (
-          <p className="mt-1 text-xs text-red-600">This email already has a pending invitation</p>
+          <p className="mt-1 text-xs text-red-600">{t('pendingExists')}</p>
         )}
       </div>
       <div>
         <label htmlFor="role" className="block text-sm font-medium">
-          Role
+          {t('roleLabel')}
         </label>
         <select
           id="role"
@@ -88,8 +90,8 @@ export function InviteForm({ organizationId }: { organizationId: string }) {
           defaultValue="staff"
           className="mt-1 rounded-md border border-zinc-300 px-3 py-2 text-sm"
         >
-          <option value="staff">Staff</option>
-          <option value="admin">Admin</option>
+          <option value="staff">{t('roleStaffOption')}</option>
+          <option value="admin">{t('roleAdminOption')}</option>
         </select>
       </div>
       <button
@@ -97,7 +99,7 @@ export function InviteForm({ organizationId }: { organizationId: string }) {
         disabled={pending || emailStatus === 'pending-exists'}
         className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Sending…' : 'Send invite'}
+        {pending ? t('sending') : t('sendInvite')}
       </button>
     </form>
   )

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import {
@@ -47,6 +48,9 @@ export default async function SlipsPage({
     searchEndDate,
     searchWorkerId,
   } = await searchParams
+  const t = await getTranslations('slips')
+  const locale = await getLocale()
+  const isRTL = locale === 'ur'
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -105,7 +109,7 @@ export default async function SlipsPage({
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight print:hidden">Weekly slip</h1>
+      <h1 className="text-2xl font-semibold tracking-tight print:hidden">{t('title')}</h1>
 
       {error && (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700 print:hidden">
@@ -129,19 +133,19 @@ export default async function SlipsPage({
         <div className="relative">
           <Link
             href={`/dashboard/slips?workerId=${workerId}&weekStart=${resolveWeekBounds(addDays(weekStart, -1), scheme).weekStart}`}
-            aria-label="Previous week"
+            aria-label={t('selector.previousWeek')}
             scroll={false}
-            className="absolute -left-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
+            className="absolute -start-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
           >
-            ‹
+            {isRTL ? '›' : '‹'}
           </Link>
           <Link
             href={`/dashboard/slips?workerId=${workerId}&weekStart=${resolveWeekBounds(addDays(weekEnd, 1), scheme).weekStart}`}
-            aria-label="Next week"
+            aria-label={t('selector.nextWeek')}
             scroll={false}
-            className="absolute -right-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
+            className="absolute -end-10 top-1/2 z-10 -translate-y-1/2 rounded-full border border-zinc-300 bg-white p-2 text-sm leading-none shadow-sm hover:bg-zinc-50 print:hidden"
           >
-            ›
+            {isRTL ? '‹' : '›'}
           </Link>
           <SlipView
             organizationId={org.id}
@@ -163,12 +167,12 @@ export default async function SlipsPage({
         </div>
       ) : (
         <p className="mt-8 text-sm text-zinc-400 print:hidden">
-          Pick a worker and a week to view their slip.
+          {t('pickWorkerPrompt')}
         </p>
       )}
 
       <div className="mt-12 border-t border-zinc-200 pt-8 print:hidden">
-        <h2 className="text-sm font-medium text-zinc-500">Find weekly slip records</h2>
+        <h2 className="text-sm font-medium text-zinc-500">{t('findRecordsTitle')}</h2>
         <div className="mt-2">
           <PeriodFilterBar
             basePath="/dashboard/slips"
@@ -210,6 +214,9 @@ async function SlipRecordsBrowser({
   dateFormat: DateFormat
   showDecimals: boolean
 }) {
+  const t = await getTranslations('slips')
+  const tc = await getTranslations('common')
+  const locale = await getLocale()
   const supabase = await createClient()
 
   let query = supabase
@@ -228,9 +235,9 @@ async function SlipRecordsBrowser({
   return (
     <div className="mt-4">
       <p className="text-xs text-zinc-400">
-        Showing weeks overlapping {periodLabel(period, range, dateFormat)}.
+        {t('showingOverlap', { range: periodLabel(period, range, dateFormat, locale) })}
       </p>
-      {!records?.length && <p className="mt-2 text-sm text-zinc-400">No weekly slip records found.</p>}
+      {!records?.length && <p className="mt-2 text-sm text-zinc-400">{t('noRecords')}</p>}
       <ul className="mt-2 divide-y divide-zinc-200">
         {records?.map((r) => {
           const worker = one<{ worker_code: string | null; name: string }>(r.worker)
@@ -239,20 +246,20 @@ async function SlipRecordsBrowser({
               <div>
                 <span className="font-medium">{worker ? workerLabel(worker) : '—'}</span>{' '}
                 <span className="text-zinc-500">
-                  · {formatDate(r.week_start, dateFormat)} to {formatDate(r.week_end, dateFormat)} ·{' '}
+                  · {formatDate(r.week_start, dateFormat, locale)} {tc('dateRangeTo')} {formatDate(r.week_end, dateFormat, locale)} ·{' '}
                   <span className={r.status === 'finalized' ? 'text-emerald-700' : 'text-amber-700'}>
-                    {r.status}
+                    {r.status === 'finalized' ? t('statusFinalized') : t('statusDraft')}
                   </span>{' '}
-                  · Work {formatNumber(r.work_amount, showDecimals)} · Paid{' '}
-                  {formatNumber(r.paid_amount, showDecimals)} · Payable {formatNumber(r.payable_balance, showDecimals)}
-                  {r.final_amount != null && ` · Final Paid ${formatNumber(r.final_amount, showDecimals)}`}
+                  · {t('workLabel')} {formatNumber(r.work_amount, showDecimals)} · {t('paidLabel')}{' '}
+                  {formatNumber(r.paid_amount, showDecimals)} · {t('payableLabel')} {formatNumber(r.payable_balance, showDecimals)}
+                  {r.final_amount != null && ` · ${t('finalPaidLabel')} ${formatNumber(r.final_amount, showDecimals)}`}
                 </span>
               </div>
               <Link
                 href={`/dashboard/slips?workerId=${r.worker_id ?? ''}&weekStart=${r.week_start}`}
                 className="text-zinc-900 underline hover:text-zinc-700"
               >
-                View
+                {t('view')}
               </Link>
             </li>
           )

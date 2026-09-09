@@ -1,12 +1,14 @@
 'use client'
 
 import { useActionState, useEffect, useState, useTransition } from 'react'
+import { useTranslations } from 'next-intl'
 import { checkWorkCodeAvailable, createWorkCode, type FormState } from './actions'
 import { CodeAvailabilityHint, type CodeStatus } from './CodeAvailabilityHint'
 
 const initialState: FormState = null
 
 export function WorkCodeForm({ organizationId }: { organizationId: string }) {
+  const t = useTranslations('workCodes.form')
   const [state, formAction, pending] = useActionState(createWorkCode, initialState)
 
   const [code, setCode] = useState('')
@@ -61,46 +63,46 @@ export function WorkCodeForm({ organizationId }: { organizationId: string }) {
 
       <div className="w-28">
         <label htmlFor="code" className="block text-sm font-medium">
-          Code
+          {t('codeLabel')}
         </label>
         <input
           id="code"
           name="code"
           type="text"
           required
-          placeholder="e.g. ST-01"
+          placeholder={t('codePlaceholder')}
           value={code}
           onChange={(e) => handleCodeChange(e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, code: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {touched.code && !code.trim() && <p className="mt-1 text-xs text-red-600">Code is required</p>}
+        {touched.code && !code.trim() && <p className="mt-1 text-xs text-red-600">{t('codeRequired')}</p>}
         <CodeAvailabilityHint status={codeStatus} />
       </div>
 
       <div className="flex-1 min-w-[200px]">
         <label htmlFor="description" className="block text-sm font-medium">
-          Description
+          {t('descriptionLabel')}
         </label>
         <input
           id="description"
           name="description"
           type="text"
           required
-          placeholder="e.g. Stitching - shirt"
+          placeholder={t('descriptionPlaceholder')}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, description: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
         {touched.description && !description.trim() && (
-          <p className="mt-1 text-xs text-red-600">Description is required</p>
+          <p className="mt-1 text-xs text-red-600">{t('descriptionRequired')}</p>
         )}
       </div>
 
       <div className="w-32">
         <label htmlFor="rate" className="block text-sm font-medium">
-          Rate
+          {t('rateLabel')}
         </label>
         <input
           id="rate"
@@ -115,7 +117,7 @@ export function WorkCodeForm({ organizationId }: { organizationId: string }) {
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
         {touched.rate && !(parseFloat(rate) > 0) && (
-          <p className="mt-1 text-xs text-red-600">Rate must be greater than 0</p>
+          <p className="mt-1 text-xs text-red-600">{t('rateInvalid')}</p>
         )}
       </div>
 
@@ -124,7 +126,7 @@ export function WorkCodeForm({ organizationId }: { organizationId: string }) {
         disabled={pending || codeStatus === 'taken'}
         className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Adding…' : 'Add code'}
+        {pending ? t('adding') : t('addCode')}
       </button>
     </form>
   )

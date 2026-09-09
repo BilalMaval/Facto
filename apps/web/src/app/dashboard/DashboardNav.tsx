@@ -3,26 +3,28 @@
 import { useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { WEEK_SCHEME_LABEL, type WeekStartDay } from '@/lib/dates'
+import { useTranslations, useLocale } from 'next-intl'
+import { weekSchemeLabel, type WeekStartDay } from '@/lib/dates'
 import { initOfflineQueue, useOfflineQueueStatus } from '@/lib/offlineQueue/webAppWiring'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { signOut } from './actions'
 import { OrgSwitcher } from './OrgSwitcher'
 
-type Tab = { href: string; label: string; key?: string; adminOnly?: boolean; ownerOnly?: boolean }
+type Tab = { href: string; labelKey: string; key?: string; adminOnly?: boolean; ownerOnly?: boolean }
 
 const MAIN_TABS: Tab[] = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/dashboard/entries', label: 'Daily entry' },
-  { href: '/dashboard/slips', label: 'Weekly slips' },
-  { href: '/dashboard/work-codes', label: 'Work codes', adminOnly: true },
-  { href: '/dashboard/workers', label: 'Workers', adminOnly: true },
-  { href: '/dashboard/team', label: 'Team' },
+  { href: '/dashboard', labelKey: 'dashboard' },
+  { href: '/dashboard/entries', labelKey: 'dailyEntry' },
+  { href: '/dashboard/slips', labelKey: 'weeklySlips' },
+  { href: '/dashboard/work-codes', labelKey: 'workCodes', adminOnly: true },
+  { href: '/dashboard/workers', labelKey: 'workers', adminOnly: true },
+  { href: '/dashboard/team', labelKey: 'team' },
 ]
 
 const ACCOUNT_TABS: Tab[] = [
-  { href: '/dashboard/billing', label: 'Billing', key: 'billing', ownerOnly: true },
-  { href: '/dashboard/support', label: 'Support', key: 'support', ownerOnly: true },
-  { href: '/dashboard/settings', label: 'Settings', key: 'settings', ownerOnly: true },
+  { href: '/dashboard/billing', labelKey: 'billing', key: 'billing', ownerOnly: true },
+  { href: '/dashboard/support', labelKey: 'support', key: 'support', ownerOnly: true },
+  { href: '/dashboard/settings', labelKey: 'settings', key: 'settings', ownerOnly: true },
 ]
 
 type Membership = { organizationId: string; orgName: string; role: string }
@@ -46,6 +48,8 @@ export function DashboardNav({
   supportBadgeCount?: number
   weekStartDay: WeekStartDay
 }) {
+  const t = useTranslations('nav')
+  const locale = useLocale()
   const pathname = usePathname()
   // Harmless to call alongside OfflineQueueBanner's own init — it's a
   // one-shot guard (see initOfflineQueue), so whichever of the two mounts
@@ -74,9 +78,9 @@ export function DashboardNav({
             : 'border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-800'
         }`}
       >
-        {tab.label}
+        {t(tab.labelKey)}
         {badgeCount > 0 && (
-          <span className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+          <span className="ms-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
             {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
@@ -100,10 +104,10 @@ export function DashboardNav({
                 active when THAT week was computed and can still show the
                 org's past scheme long after it's been changed. */}
             <span
-              title="Current weekly pay period"
+              title={t('weeklyPeriodTooltip')}
               className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[11px] font-medium text-zinc-600"
             >
-              {WEEK_SCHEME_LABEL[weekStartDay]}
+              {weekSchemeLabel(weekStartDay, locale)}
             </span>
             {/* Reflects an actual reachability probe against Supabase
                 (webAppWiring.ts), not the browser's online/offline events —
@@ -111,7 +115,7 @@ export function DashboardNav({
                 not the network adapter, which is the one case this exists
                 to surface. */}
             <span
-              title={isOnline ? 'Connected to the server' : "Can't reach the server — working offline"}
+              title={isOnline ? t('connectedTooltip') : t('offlineTooltip')}
               className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
                 isOnline
                   ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
@@ -121,21 +125,24 @@ export function DashboardNav({
               <span
                 className={`h-1.5 w-1.5 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}
               />
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? t('online') : t('offline')}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-zinc-500">
             {userEmail} · {role}
           </p>
         </div>
-        <form action={signOut}>
-          <button
-            type="submit"
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
-          >
-            Sign out
-          </button>
-        </form>
+        <div className="flex items-center gap-2">
+          <LanguageSwitcher />
+          <form action={signOut}>
+            <button
+              type="submit"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm text-zinc-600 hover:bg-zinc-50"
+            >
+              {t('signOut')}
+            </button>
+          </form>
+        </div>
       </div>
 
       <nav className="mx-auto flex max-w-6xl items-center justify-between gap-1 overflow-x-auto px-4 pt-3">

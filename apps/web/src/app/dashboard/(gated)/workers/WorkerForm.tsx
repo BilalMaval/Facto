@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useState, useTransition } from 'react'
+import { useTranslations } from 'next-intl'
 import { calculateAge } from '@/lib/age'
 import { formatCnic } from '@/lib/cnic'
 import { checkCnicAvailable, createWorker, type FormState } from './actions'
@@ -12,6 +13,7 @@ import { today as todayStr, type DateFormat } from '@/lib/dates'
 const initialState: FormState = null
 
 export function WorkerForm({ organizationId, dateFormat }: { organizationId: string; dateFormat: DateFormat }) {
+  const t = useTranslations('workers')
   const [state, formAction, pending] = useActionState(createWorker, initialState)
 
   const [workerCode, setWorkerCode] = useState('')
@@ -79,13 +81,13 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
 
       <div>
         <label htmlFor="new-workerCode" className="block text-xs font-medium text-zinc-500">
-          Worker ID <span className="text-zinc-400">(optional)</span>
+          {t('form.workerIdLabel')} <span className="text-zinc-400">{t('form.optional')}</span>
         </label>
         <input
           id="new-workerCode"
           name="workerCode"
           type="text"
-          placeholder="e.g. W-001"
+          placeholder={t('form.workerIdPlaceholder')}
           value={workerCode}
           onChange={(e) => setWorkerCode(e.target.value)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
@@ -94,7 +96,7 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
 
       <div>
         <label htmlFor="new-name" className="block text-xs font-medium text-zinc-500">
-          Name
+          {t('form.nameLabel')}
         </label>
         <input
           id="new-name"
@@ -106,14 +108,14 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
           onBlur={() => setTouched((t) => ({ ...t, name: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {touched.name && !name.trim() && <p className="mt-1 text-xs text-red-600">Name is required</p>}
+        {touched.name && !name.trim() && <p className="mt-1 text-xs text-red-600">{t('form.nameRequired')}</p>}
       </div>
 
-      <Field label="Father's name" name="fatherName" />
+      <Field label={t('form.fatherNameLabel')} name="fatherName" />
 
       <div>
         <label htmlFor="new-cnic" className="block text-xs font-medium text-zinc-500">
-          CNIC
+          {t('form.cnicLabel')}
         </label>
         <input
           id="new-cnic"
@@ -121,24 +123,24 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
           type="text"
           required
           inputMode="numeric"
-          placeholder="34101-1234567-1"
+          placeholder={t('form.cnicPlaceholder')}
           maxLength={15}
           value={cnic}
           onChange={(e) => handleCnicChange(e.target.value)}
           onBlur={() => setTouched((t) => ({ ...t, cnic: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {cnicInvalid && <p className="mt-1 text-xs text-red-600">Enter a valid 13-digit CNIC</p>}
-        <CodeAvailabilityHint status={cnicStatus} label="CNIC" />
+        {cnicInvalid && <p className="mt-1 text-xs text-red-600">{t('form.cnicInvalid')}</p>}
+        <CodeAvailabilityHint status={cnicStatus} label={t('form.cnicLabel')} />
       </div>
 
-      <Field label="Contact no." name="contactNo" />
-      <Field label="Designation" name="designation" />
-      <Field label="Address" name="address" />
+      <Field label={t('form.contactNoLabel')} name="contactNo" />
+      <Field label={t('form.designationLabel')} name="designation" />
+      <Field label={t('form.addressLabel')} name="address" />
 
       <div>
         <label htmlFor="new-dateOfBirth" className="block text-xs font-medium text-zinc-500">
-          Date of birth
+          {t('form.dateOfBirthLabel')}
         </label>
         <DatePicker
           id="new-dateOfBirth"
@@ -149,12 +151,12 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
           max={todayStr()}
           className="mt-1"
         />
-        {age !== null && <p className="mt-1 text-xs text-zinc-500">Age: {age}</p>}
+        {age !== null && <p className="mt-1 text-xs text-zinc-500">{t('form.age', { age })}</p>}
       </div>
 
       <div>
         <label htmlFor="new-employmentType" className="block text-xs font-medium text-zinc-500">
-          Payment type
+          {t('form.paymentTypeLabel')}
         </label>
         <select
           id="new-employmentType"
@@ -163,16 +165,16 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
           onChange={(e) => setEmploymentType(e.target.value as typeof employmentType)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         >
-          <option value="contract">Contract — paid per work logged</option>
-          <option value="salary">Salary — fixed weekly amount</option>
-          <option value="hybrid">Hybrid — work logged + weekly salary</option>
+          <option value="contract">{t('form.paymentTypeContract')}</option>
+          <option value="salary">{t('form.paymentTypeSalary')}</option>
+          <option value="hybrid">{t('form.paymentTypeHybrid')}</option>
         </select>
       </div>
 
       {employmentType !== 'contract' && (
         <div>
           <label htmlFor="new-weeklySalary" className="block text-xs font-medium text-zinc-500">
-            Weekly Salary
+            {t('form.weeklySalaryLabel')}
           </label>
           <input
             id="new-weeklySalary"
@@ -188,7 +190,7 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
 
       <div>
         <label htmlFor="new-advanceBalance" className="block text-xs font-medium text-zinc-500">
-          Total Advance
+          {t('form.totalAdvanceLabel')}
         </label>
         <input
           id="new-advanceBalance"
@@ -206,7 +208,7 @@ export function WorkerForm({ organizationId, dateFormat }: { organizationId: str
           disabled={pending || cnicStatus === 'taken'}
           className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
         >
-          {pending ? 'Adding…' : 'Add worker'}
+          {pending ? t('form.adding') : t('form.addWorker')}
         </button>
       </div>
     </form>

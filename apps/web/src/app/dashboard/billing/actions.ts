@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
-import { getResilientUser } from '@/lib/supabase/resilientUser'
+import { requireOrgRole } from '@/lib/session'
+import { uploadObject } from '@/lib/storage/r2'
 
 export type FormState = { error?: string; success?: boolean } | null
 
@@ -12,6 +14,7 @@ const METHODS = ['easypaisa', 'jazzcash', 'bank_transfer'] as const
 const PURPOSES = ['subscription', 'plan_upgrade'] as const
 
 export async function submitPaymentProof(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const amount = Number(formData.get('amount') ?? 0)
   const method = String(formData.get('method') ?? '')
@@ -22,41 +25,41 @@ export async function submitPaymentProof(_prevState: FormState, formData: FormDa
   const purpose = PURPOSES.includes(purposeRaw as (typeof PURPOSES)[number]) ? purposeRaw : 'subscription'
 
   if (!METHODS.includes(method as (typeof METHODS)[number])) {
-    return { error: 'Choose a payment method' }
+    return { error: t('billing.errors.choosePaymentMethod') }
   }
   if (!transactionReference) {
-    return { error: 'Enter the transaction reference / ID' }
+    return { error: t('billing.errors.enterTransactionRef') }
   }
   if (!paymentDate) {
-    return { error: 'Enter the date you paid' }
+    return { error: t('billing.errors.enterPaymentDate') }
   }
   if (!amount || amount <= 0) {
-    return { error: 'Enter a valid amount' }
+    return { error: t('billing.errors.enterValidAmount') }
   }
   if (!proof || proof.size === 0) {
-    return { error: 'Upload a screenshot of the payment as proof' }
+    return { error: t('billing.errors.uploadProof') }
   }
   if (proof.size > MAX_PROOF_BYTES) {
-    return { error: 'Proof image must be under 5MB' }
+    return { error: t('billing.errors.proofTooLarge') }
   }
   if (!proof.type.startsWith('image/')) {
-    return { error: 'Proof must be an image' }
+    return { error: t('billing.errors.proofMustBeImage') }
   }
+
+  const membership = await requireOrgRole(organizationId, ['owner', 'admin'])
+  if (!membership) {
+    return { error: t('billing.errors.notAuthenticated') }
+  }
+  const user = membership.user
 
   const supabase = await createClient()
   const extension = proof.type.split('/')[1] || 'jpg'
   const path = `${organizationId}/${crypto.randomUUID()}/proof.${extension}`
 
-  const { error: uploadError } = await supabase.storage
-    .from('payment-proofs')
-    .upload(path, proof, { contentType: proof.type })
-  if (uploadError) {
-    return { error: uploadError.message }
-  }
-
-  const user = await getResilientUser(supabase)
-  if (!user) {
-    return { error: 'Not authenticated' }
+  try {
+    await uploadObject('payment-proofs', path, proof)
+  } catch {
+    return { error: t('common.genericError') }
   }
 
   const { error: insertError } = await supabase.from('payment_submissions').insert({
@@ -71,7 +74,7 @@ export async function submitPaymentProof(_prevState: FormState, formData: FormDa
     purpose,
   })
   if (insertError) {
-    return { error: insertError.message }
+    return { error: t('common.genericError') }
   }
 
   revalidatePath('/dashboard/billing')
@@ -80,12 +83,13 @@ export async function submitPaymentProof(_prevState: FormState, formData: FormDa
 }
 
 export async function startFreeTrial(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('common')
   const organizationId = String(formData.get('organizationId') ?? '')
   const supabase = await createClient()
   const { error } = await supabase.rpc('start_free_trial', { p_org_id: organizationId })
 
   if (error) {
-    return { error: error.message }
+    return { error: t('genericError') }
   }
 
   revalidatePath('/dashboard', 'layout')

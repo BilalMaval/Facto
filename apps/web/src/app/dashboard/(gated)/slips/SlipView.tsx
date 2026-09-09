@@ -1,3 +1,4 @@
+import { getTranslations, getLocale } from 'next-intl/server'
 import {
   addDays,
   dayAbbr,
@@ -6,6 +7,7 @@ import {
   nextAnchorOnOrAfter,
   resolveWeekBounds,
   today as todayStr,
+  weekSchemeLabel,
   type DateFormat,
   type WeekScheme,
   type WeekStartDay,
@@ -15,6 +17,7 @@ import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
 import { computeSalaryComponent, computeWorkAmount } from '@facto/payroll-core'
 import { createClient } from '@/lib/supabase/server'
 import { withLastKnownGood } from '@/lib/supabase/queryCache'
+import { getSignedReadUrl } from '@/lib/storage/r2'
 import { reopenSlip } from './actions'
 import { ConfirmButton } from './ConfirmButton'
 import { PrintButton } from './PrintButton'
@@ -71,6 +74,9 @@ export async function SlipView({
   embedded?: boolean
   heading?: string
 }) {
+  const t = await getTranslations('slips.detail')
+  const tc = await getTranslations('common')
+  const locale = await getLocale()
   const scheme: WeekScheme = { weekStartDay, previousWeekStartDay, transitionDate }
   const supabase = await createClient()
 
@@ -112,15 +118,19 @@ export async function SlipView({
     // a connectivity failure is neither their fault nor permanent.
     return (
       <p className="mt-8 text-sm text-red-600 print:hidden">
-        {stale ? "Can't reach the server — try again shortly." : 'Worker not found.'}
+        {stale ? t('cantReachServer') : t('workerNotFound')}
       </p>
     )
   }
 
   let photoSignedUrl: string | null = null
   if (worker.photo_url) {
-    const { data } = await supabase.storage.from('worker-photos').createSignedUrl(worker.photo_url, 3600)
-    photoSignedUrl = data?.signedUrl ?? null
+    try {
+      photoSignedUrl = await getSignedReadUrl('worker-photos', worker.photo_url)
+    } catch {
+      // Same graceful-degradation as before: a signing failure just means
+      // the photo doesn't render, not a page-wide error.
+    }
   }
 
   const { data: slip } = await supabase
@@ -272,7 +282,7 @@ export async function SlipView({
   // it's clear from either side why it's counted where it is.
   function redirectNote(dateStr: string): string | undefined {
     if (dateStr >= weekStart && dateStr <= weekEnd) return undefined
-    return 'Dated in an earlier week that was already finalized when this was logged — counted here instead.'
+    return t('redirectedFromLaterNote')
   }
 
   const shownPaidDates = new Set<string>()
@@ -315,7 +325,7 @@ export async function SlipView({
       rate: Number(e.rate_snapshot),
       amount: Number(e.amount),
       paidAmount: null,
-      note: `Logged after this week was finalized — counted in the week of ${formatDate(e.counted_week_start, dateFormat)} instead.`,
+      note: t('lateEntryNote', { week: formatDate(e.counted_week_start, dateFormat, locale) }),
     })
   }
   for (const p of latePayments ?? []) {
@@ -326,7 +336,7 @@ export async function SlipView({
       rate: null,
       amount: null,
       paidAmount: Number(p.amount),
-      note: `Payment logged after this week was finalized — counted in the week of ${formatDate(p.counted_week_start, dateFormat)} instead.`,
+      note: t('latePaymentNote', { week: formatDate(p.counted_week_start, dateFormat, locale) }),
     })
   }
 
@@ -367,12 +377,15 @@ export async function SlipView({
   // the very last one — is still a genuine working day; nothing to hide.
   const displayWeekEnd = isTruncatedOldWeek ? weekEnd : addDays(weekEnd, -1)
   const transitionNotice = isTruncatedOldWeek
-    ? `Cut short by a Week Start Day change on ${formatDate(transitionDate!, dateFormat)}.`
+    ? t('transitionCutShort', { date: formatDate(transitionDate!, dateFormat, locale) })
     : isFirstCleanWeek
-      ? `First full week after the Week Start Day change on ${formatDate(transitionDate!, dateFormat)}.`
+      ? t('transitionFirstFullWeek', { date: formatDate(transitionDate!, dateFormat, locale) })
       : null
 
-  const weekTypeLabel = dayAbbr(weekStart) === 'Sat' ? 'Sat-Thu' : 'Mon-Sat'
+  // dayAbbr() here is a logic check against the fixed English abbreviation
+  // (not a display value), so it deliberately doesn't take locale — only
+  // weekSchemeLabel's own output, below, needs to be locale-aware.
+  const weekTypeLabel = weekSchemeLabel(dayAbbr(weekStart) === 'Sat' ? 'saturday' : 'monday', locale)
 
   return (
     <div className={embedded ? '' : 'mt-8'}>
@@ -388,10 +401,10 @@ export async function SlipView({
                 <input type="hidden" name="weekStart" value={weekStart} />
                 <input type="hidden" name="returnTo" value={returnTo} />
                 <ConfirmButton
-                  confirmText="Reopen this week? This reverses the advance balance change and unlocks entries and payments for editing."
+                  confirmText={t('reopenConfirm')}
                   className="rounded-md border border-red-300 px-3 py-2 text-sm text-red-700 hover:bg-red-50"
                 >
-                  Reopen week
+                  {t('reopenWeek')}
                 </ConfirmButton>
               </form>
             )}
@@ -404,14 +417,18 @@ export async function SlipView({
               to say whether the week you've navigated to happens to match. */}
           {embedded && (
             <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-              Current week
+              {t('currentWeekBadge')}
             </span>
           )}
           <p className="text-sm text-zinc-500">
-            Week: {formatDate(weekStart, dateFormat)} to {formatDate(displayWeekEnd, dateFormat)} (
-            {weekTypeLabel}) ·{' '}
+            {t('weekPrefix', {
+              start: formatDate(weekStart, dateFormat, locale),
+              end: formatDate(displayWeekEnd, dateFormat, locale),
+              type: weekTypeLabel,
+            })}{' '}
+            ·{' '}
             <span className={isFinalized ? 'font-medium text-emerald-700' : 'font-medium text-amber-700'}>
-              {isFinalized ? 'Finalized' : 'Draft'}
+              {isFinalized ? t('finalized') : t('draft')}
             </span>
           </p>
         </div>
@@ -427,24 +444,23 @@ export async function SlipView({
       >
         <div className="text-center">
           <h2 className="text-lg font-semibold">{orgName}</h2>
-          <p className="text-sm text-zinc-500">Worker Salary Slip</p>
+          <p className="text-sm text-zinc-500">{t('slipHeading')}</p>
           <p className="text-xs text-zinc-400">
-            {formatDate(weekStart, dateFormat)} to {formatDate(displayWeekEnd, dateFormat)} ({weekTypeLabel})
+            {formatDate(weekStart, dateFormat, locale)} {tc('dateRangeTo')} {formatDate(displayWeekEnd, dateFormat, locale)} ({weekTypeLabel})
           </p>
           {/* Screen already shows this in the print:hidden status bar above
               — only needs a print-specific copy so it isn't lost on paper. */}
           <p
             className={`hidden text-xs font-medium print:block ${isFinalized ? 'text-emerald-700' : 'text-amber-700'}`}
           >
-            {isFinalized ? 'Finalized' : 'Draft'}
+            {isFinalized ? t('finalized') : t('draft')}
           </p>
           {transitionNotice && <p className="mt-1 text-[11px] text-sky-700">{transitionNotice}</p>}
         </div>
 
         {(stale || attendanceStale) && (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 print:hidden">
-            Showing the last saved version — can&apos;t reach the server right now. Nothing here is lost;
-            any changes you make will be saved locally and sync automatically once you&apos;re back online.
+            {t('offlineNotice')}
           </p>
         )}
 
@@ -454,17 +470,17 @@ export async function SlipView({
             <img src={photoSignedUrl} alt={worker.name} className="h-24 w-24 rounded-md object-cover" />
           ) : (
             <div className="flex h-24 w-24 items-center justify-center rounded-md bg-zinc-100 text-xs text-zinc-400">
-              No photo
+              {t('noPhoto')}
             </div>
           )}
           <dl className="grid flex-1 grid-cols-2 gap-x-6 gap-y-1 text-sm">
-            <InfoRow label="Worker ID" value={worker.worker_code ?? '—'} />
-            <InfoRow label="Name" value={worker.name} />
-            <InfoRow label="Father Name" value={worker.father_name ?? '—'} />
-            <InfoRow label="Contact No" value={worker.contact_no ?? '—'} />
-            <InfoRow label="Designation" value={worker.designation ?? '—'} />
-            <InfoRow label="Address" value={worker.address ?? '—'} />
-            <InfoRow label="Total Advance" value={formatMoney(worker.advance_balance, currency, showDecimals)} />
+            <InfoRow label={t('infoWorkerId')} value={worker.worker_code ?? '—'} />
+            <InfoRow label={t('infoName')} value={worker.name} />
+            <InfoRow label={t('infoFatherName')} value={worker.father_name ?? '—'} />
+            <InfoRow label={t('infoContactNo')} value={worker.contact_no ?? '—'} />
+            <InfoRow label={t('infoDesignation')} value={worker.designation ?? '—'} />
+            <InfoRow label={t('infoAddress')} value={worker.address ?? '—'} />
+            <InfoRow label={t('infoTotalAdvance')} value={formatMoney(worker.advance_balance, currency, showDecimals)} />
           </dl>
         </div>
 
@@ -493,31 +509,35 @@ export async function SlipView({
         <div className="mt-6 overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-zinc-300 text-left">
-                <th className="py-2 pr-2">Date</th>
-                <th className="py-2 pr-2">Day</th>
-                <th className="py-2 pr-2">Description</th>
-                <th className="py-2 px-2 text-right">Quantity</th>
-                <th className="py-2 px-2 text-right">Rate</th>
-                <th className="py-2 px-2 text-right">Amount</th>
-                <th className="py-2 pl-2 text-right">Paid Amount</th>
+              <tr className="border-b border-zinc-300 text-start">
+                <th className="py-2 pe-2">{t('tableDate')}</th>
+                <th className="py-2 pe-2">{t('tableDay')}</th>
+                <th className="py-2 pe-2">{t('tableDescription')}</th>
+                {/* Numeric columns deliberately keep physical text-right —
+                    amounts read left-to-right regardless of UI language, the
+                    same convention spreadsheets/accounting software use even
+                    in Arabic/Urdu locales. */}
+                <th className="py-2 px-2 text-right">{t('tableQuantity')}</th>
+                <th className="py-2 px-2 text-right">{t('tableRate')}</th>
+                <th className="py-2 px-2 text-right">{t('tableAmount')}</th>
+                <th className="py-2 ps-2 text-right">{t('tablePaidAmount')}</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="py-4 text-center text-zinc-400">
-                    No entries or payments this week.
+                    {t('noEntriesThisWeek')}
                   </td>
                 </tr>
               )}
               {rows.map((r, i) => (
                 <tr key={i} className={`border-b border-zinc-100 ${r.note ? 'bg-amber-50/60' : ''}`}>
-                  <td className="py-2 pr-2 whitespace-nowrap">{formatDate(r.date, dateFormat)}</td>
-                  <td className="py-2 pr-2">{dayAbbr(r.date)}</td>
-                  <td className="py-2 pr-2">
+                  <td className="py-2 pe-2 whitespace-nowrap">{formatDate(r.date, dateFormat, locale)}</td>
+                  <td className="py-2 pe-2">{dayAbbr(r.date, locale)}</td>
+                  <td className="py-2 pe-2">
                     {r.description}
-                    {r.note && <span className="mt-0.5 block text-[11px] italic text-amber-700">Note: {r.note}</span>}
+                    {r.note && <span className="mt-0.5 block text-[11px] italic text-amber-700">{t('noteLabel', { note: r.note })}</span>}
                   </td>
                   <td className="py-2 px-2 text-right">{r.quantity ?? '—'}</td>
                   <td className="py-2 px-2 text-right whitespace-nowrap">
@@ -526,7 +546,7 @@ export async function SlipView({
                   <td className="py-2 px-2 text-right whitespace-nowrap">
                     {r.amount !== null ? formatNumber(r.amount, showDecimals) : '—'}
                   </td>
-                  <td className="py-2 pl-2 text-right whitespace-nowrap">
+                  <td className="py-2 ps-2 text-right whitespace-nowrap">
                     {r.paidAmount !== null ? formatNumber(r.paidAmount, showDecimals) : '—'}
                   </td>
                 </tr>
@@ -535,17 +555,17 @@ export async function SlipView({
             <tfoot>
               <tr className="border-t-2 border-zinc-300 font-semibold">
                 <td className="py-2" colSpan={5}>
-                  Total
+                  {t('total')}
                 </td>
                 <td className="py-2 px-2 text-right whitespace-nowrap">
                   <div className="flex items-baseline justify-end gap-1">
-                    <span className="text-[10px] font-normal text-zinc-500">Total Work</span>
+                    <span className="text-[10px] font-normal text-zinc-500">{t('totalWork')}</span>
                     <span>{formatMoney(workAmount, currency, showDecimals)}</span>
                   </div>
                 </td>
-                <td className="py-2 pl-2 text-right whitespace-nowrap">
+                <td className="py-2 ps-2 text-right whitespace-nowrap">
                   <div className="flex items-baseline justify-end gap-1">
-                    <span className="text-[10px] font-normal text-zinc-500">Paid Amount</span>
+                    <span className="text-[10px] font-normal text-zinc-500">{t('tablePaidAmount')}</span>
                     <span>{formatMoney(paidAmount, currency, showDecimals)}</span>
                   </div>
                 </td>
@@ -554,20 +574,20 @@ export async function SlipView({
           </table>
         </div>
 
-        <div className="mt-6 ml-auto w-full max-w-xs space-y-1 text-sm">
-          <SummaryRow label="Payable" value={payable} bold currency={currency} showDecimals={showDecimals} />
+        <div className="mt-6 ms-auto w-full max-w-xs space-y-1 text-sm">
+          <SummaryRow label={t('payable')} value={payable} bold currency={currency} showDecimals={showDecimals} />
 
           {isFinalized && delta !== null && finalAmount !== null ? (
             <>
               {delta < 0 && (
-                <SummaryRow label="Advance -" value={delta} signed currency={currency} showDecimals={showDecimals} />
+                <SummaryRow label={t('advanceMinus')} value={delta} signed currency={currency} showDecimals={showDecimals} />
               )}
               {delta > 0 && (
-                <SummaryRow label="Advance +" value={delta} signed currency={currency} showDecimals={showDecimals} />
+                <SummaryRow label={t('advancePlus')} value={delta} signed currency={currency} showDecimals={showDecimals} />
               )}
-              <SummaryRow label="Final Paid" value={finalAmount} currency={currency} showDecimals={showDecimals} />
+              <SummaryRow label={t('finalPaid')} value={finalAmount} currency={currency} showDecimals={showDecimals} />
               <SummaryRow
-                label="Total Advance"
+                label={t('totalAdvance')}
                 value={currentAdvanceBalance}
                 bold
                 currency={currency}
@@ -595,14 +615,14 @@ export async function SlipView({
                   printed page always needs this line since the form itself
                   never prints. */}
               <p className={`pt-2 text-xs text-zinc-400 ${canFinalize ? 'hidden print:block' : ''}`}>
-                Pending finalization by an admin or owner.
+                {t('pendingFinalization')}
               </p>
             </>
           ) : null}
         </div>
 
         <p className="mt-6 text-xs text-zinc-400">
-          If Final Amount is more than Payable, extra amount will automatically be added to Total Advance.
+          {t('finalAmountNote')}
         </p>
       </div>
     </div>

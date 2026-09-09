@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { postReply, type FormState } from './actions'
 
 const initialState: FormState = null
 
 export function ReplyForm({ ticketId }: { ticketId: string }) {
+  const t = useTranslations('support.reply')
   const [state, formAction, pending] = useActionState(postReply, initialState)
   const [formGeneration, setFormGeneration] = useState(0)
   const [lastHandledState, setLastHandledState] = useState<FormState>(null)
@@ -22,7 +24,7 @@ export function ReplyForm({ ticketId }: { ticketId: string }) {
         name="body"
         rows={3}
         required
-        placeholder="Write a reply…"
+        placeholder={t('placeholder')}
         className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
       />
       <button
@@ -30,7 +32,7 @@ export function ReplyForm({ ticketId }: { ticketId: string }) {
         disabled={pending}
         className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Sending…' : 'Reply'}
+        {pending ? t('sending') : t('reply')}
       </button>
     </form>
   )

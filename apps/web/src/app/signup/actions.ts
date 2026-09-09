@@ -2,9 +2,26 @@
 
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 
 export type FormState = { error?: string } | null
+
+async function friendlyAuthMessage(error: { code?: string; message: string }) {
+  const t = await getTranslations('auth.errors')
+  switch (error.code) {
+    case 'user_already_exists':
+    case 'email_exists':
+      return t('userAlreadyExists')
+    case 'weak_password':
+      return t('weakPassword')
+    case 'over_request_rate_limit':
+    case 'over_email_send_rate_limit':
+      return t('rateLimited')
+    default:
+      return (await getTranslations('common'))('genericError')
+  }
+}
 
 export async function signup(_prevState: FormState, formData: FormData): Promise<FormState> {
   const email = String(formData.get('email') ?? '')
@@ -23,7 +40,7 @@ export async function signup(_prevState: FormState, formData: FormData): Promise
   })
 
   if (error) {
-    return { error: error.message }
+    return { error: await friendlyAuthMessage(error) }
   }
 
   if (data.session) {

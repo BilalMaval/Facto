@@ -1,10 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { getOwnerTier } from '@/lib/ownerPlan'
 import { NewBusinessForm } from './NewBusinessForm'
 
 export default async function NewBusinessPage() {
+  const t = await getTranslations('newBusiness')
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -19,11 +21,11 @@ export default async function NewBusinessPage() {
       <div className="w-full max-w-sm space-y-6 rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
         <div>
           <Link href="/dashboard/settings" className="text-sm text-zinc-500 underline">
-            ← Settings
+            {t('backToSettings')}
           </Link>
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Add another business</h1>
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">{t('title')}</h1>
           <p className="mt-1 text-sm text-zinc-500">
-            You&apos;ll be the owner and can set it up the same way you did the first one.
+            {t('subtitle')}
           </p>
         </div>
 

@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createAdditionalBusiness, type FormState } from './actions'
 
 const initialState: FormState = null
 
 export function NewBusinessForm() {
+  const t = useTranslations('newBusiness')
   const [state, formAction, pending] = useActionState(createAdditionalBusiness, initialState)
 
   return (
@@ -14,14 +16,14 @@ export function NewBusinessForm() {
 
       <div>
         <label htmlFor="name" className="block text-sm font-medium">
-          Business name
+          {t('nameLabel')}
         </label>
         <input
           id="name"
           name="name"
           type="text"
           required
-          placeholder="e.g. Riverside Garments Ltd"
+          placeholder={t('namePlaceholder')}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
       </div>
@@ -30,7 +32,7 @@ export function NewBusinessForm() {
         disabled={pending}
         className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Creating…' : 'Create business'}
+        {pending ? t('creating') : t('createBusiness')}
       </button>
     </form>
   )

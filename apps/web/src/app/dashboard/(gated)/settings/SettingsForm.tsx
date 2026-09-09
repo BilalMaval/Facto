@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import Link from 'next/link'
+import { useTranslations } from 'next-intl'
 import { updateOrgSettings, type FormState } from './actions'
 import { TIMEZONES, CURRENCIES, DATE_FORMATS } from '@/lib/preferences'
 
@@ -30,6 +31,10 @@ export function SettingsForm({
   currentOvertimeRateMultiplier: number
   openPastWeeksCount: number
 }) {
+  const t = useTranslations('settings')
+  const tc = useTranslations('common')
+  const tz = useTranslations('settings.timezoneLabels')
+  const cur = useTranslations('settings.currencyLabels')
   const [state, formAction, pending] = useActionState(updateOrgSettings, initialState)
 
   // After a successful save, the action's own response — not the next
@@ -61,17 +66,12 @@ export function SettingsForm({
     >
       <input type="hidden" name="organizationId" value={organizationId} />
 
-      <h2 className="text-sm font-semibold text-zinc-700">Weekly pay period</h2>
+      <h2 className="text-sm font-semibold text-zinc-700">{t('weeklyPayPeriodHeading')}</h2>
       <p className="mt-1 text-sm text-zinc-500">
-        Determines the default week shown when logging entries and viewing weekly slips. Weeks
-        that are already finalized keep the boundaries they were finalized with, even if you
-        change this later.
+        {t('weeklyPayPeriodDescription')}
       </p>
       <p className="mt-2 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-500">
-        Only change this right after finalizing every open week — not routinely. Switching
-        mid-week is safe (nothing is lost), but it shortens the week currently in progress so the
-        new schedule can start cleanly — immediately, if today already lines up with it — so
-        it&apos;s best kept rare.
+        {t('weeklyPayPeriodWarning')}
       </p>
 
       {state?.error && (
@@ -79,16 +79,15 @@ export function SettingsForm({
       )}
       {state?.success && state.saved?.immediateRestart && (
         <p className="mt-3 rounded-md bg-sky-50 px-3 py-2 text-sm text-sky-800">
-          Saved. Today already matches the new schedule, so every worker&apos;s current week was
-          just cut short to end yesterday.{' '}
+          {t('savedImmediateRestart')}
           <Link href="/dashboard/slips" className="font-medium underline">
-            Review and finalize those shortened weeks
-          </Link>{' '}
-          on the Weekly Slips page.
+            {t('reviewShortenedWeeks')}
+          </Link>
+          {t('onWeeklySlipsPage')}
         </p>
       )}
       {state?.success && !state.saved?.immediateRestart && (
-        <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Saved.</p>
+        <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{t('saved')}</p>
       )}
 
       <div className="mt-4 space-y-3">
@@ -102,8 +101,8 @@ export function SettingsForm({
             className="mt-1"
           />
           <span>
-            <span className="block text-sm font-medium text-zinc-900">Monday – Saturday</span>
-            <span className="block text-xs text-zinc-500">Sunday off. Week runs Monday through Sunday.</span>
+            <span className="block text-sm font-medium text-zinc-900">{t('mondaySaturdayLabel')}</span>
+            <span className="block text-xs text-zinc-500">{t('mondaySaturdayDescription')}</span>
           </span>
         </label>
 
@@ -117,25 +116,23 @@ export function SettingsForm({
             className="mt-1"
           />
           <span>
-            <span className="block text-sm font-medium text-zinc-900">Saturday – Thursday</span>
-            <span className="block text-xs text-zinc-500">Friday off. Week runs Saturday through Friday.</span>
+            <span className="block text-sm font-medium text-zinc-900">{t('saturdayThursdayLabel')}</span>
+            <span className="block text-xs text-zinc-500">{t('saturdayThursdayDescription')}</span>
           </span>
         </label>
       </div>
 
       {selectedWeekStartDay !== weekStartDay && openPastWeeksCount > 0 && (
         <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          {`You have ${openPastWeeksCount} past week${openPastWeeksCount === 1 ? '' : 's'} that ${
-            openPastWeeksCount === 1 ? 'was' : 'were'
-          } never finalized. Switching won't change or lose any of that data, but afterward those weeks won't show up via the Weekly Slips ‹ › navigation anymore — you'll need Find weekly slip records to open them. Finalizing them first keeps navigation simple.`}
+          {t('openWeeksWarning', { count: openPastWeeksCount })}
         </p>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div>
-          <h2 className="text-sm font-semibold text-zinc-700">Date format</h2>
+          <h2 className="text-sm font-semibold text-zinc-700">{t('dateFormatHeading')}</h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Used to display dates across the app. Date pickers still show your browser&apos;s own format.
+            {t('dateFormatDescription')}
           </p>
           <select
             name="dateFormat"
@@ -151,24 +148,24 @@ export function SettingsForm({
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-zinc-700">Timezone</h2>
-          <p className="mt-1 text-xs text-zinc-500">Used to display the time entries and payments were logged.</p>
+          <h2 className="text-sm font-semibold text-zinc-700">{t('timezoneHeading')}</h2>
+          <p className="mt-1 text-xs text-zinc-500">{t('timezoneDescription')}</p>
           <select
             name="timezone"
             defaultValue={timezone}
             className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
           >
-            {TIMEZONES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
+            {TIMEZONES.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {tz(opt.value)}
               </option>
             ))}
           </select>
         </div>
 
         <div>
-          <h2 className="text-sm font-semibold text-zinc-700">Currency</h2>
-          <p className="mt-1 text-xs text-zinc-500">Used to format all amounts across the app.</p>
+          <h2 className="text-sm font-semibold text-zinc-700">{t('currencyHeading')}</h2>
+          <p className="mt-1 text-xs text-zinc-500">{t('currencyDescription')}</p>
           <select
             name="currency"
             defaultValue={currency}
@@ -176,7 +173,7 @@ export function SettingsForm({
           >
             {CURRENCIES.map((c) => (
               <option key={c.value} value={c.value}>
-                {c.label}
+                {cur(c.value)}
               </option>
             ))}
           </select>
@@ -184,19 +181,17 @@ export function SettingsForm({
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-semibold text-zinc-700">Amount display</h2>
+        <h2 className="text-sm font-semibold text-zinc-700">{t('amountDisplayHeading')}</h2>
         <label className="mt-2 flex cursor-pointer items-start justify-between gap-3 rounded-md border border-zinc-200 p-3 has-[:checked]:border-zinc-900 has-[:checked]:bg-zinc-50">
           <span>
             <span className="block text-sm font-medium text-zinc-900">
-              Always show two decimal places
+              {t('alwaysShowDecimals')}
             </span>
             <span className="mt-1 block text-xs text-zinc-500">
-              {showDecimals
-                ? 'On — every amount shows two decimal places, e.g. 150.00 and 150.50.'
-                : 'Off — whole amounts drop the decimals (150 instead of 150.00) to keep tables less crowded. Amounts that actually have cents still show them (150.50).'}
+              {showDecimals ? t('decimalsOnDescription') : t('decimalsOffDescription')}
             </span>
             <span className="mt-2 inline-flex items-center gap-1.5 rounded bg-zinc-100 px-2 py-1 font-mono text-xs text-zinc-600">
-              Preview: {showDecimals ? '150.00' : '150'} · {showDecimals ? '150.50' : '150.50'}
+              {t('previewLabel', { a: showDecimals ? '150.00' : '150', b: showDecimals ? '150.50' : '150.50' })}
             </span>
           </span>
           <span className="relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full bg-zinc-200 transition-colors has-[:checked]:bg-zinc-900">
@@ -207,26 +202,28 @@ export function SettingsForm({
               onChange={(e) => setShowDecimals(e.target.checked)}
               className="peer sr-only"
             />
-            <span className="ml-0.5 inline-block h-5 w-5 translate-x-0 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+            {/* translate-x uses a physical (not logical) axis — CSS
+                transforms never follow `dir` on their own — so the checked
+                state needs its own rtl: variant to slide toward the
+                opposite physical edge instead of visually "uncrossing"
+                the toggle in RTL. */}
+            <span className="ms-0.5 inline-block h-5 w-5 translate-x-0 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5 rtl:peer-checked:-translate-x-5" />
           </span>
         </label>
         <p className="mt-2 text-xs text-zinc-400">
-          Applies everywhere amounts are shown — entries, payments, and weekly slips. Click Save
-          below for the change to take effect.
+          {t('decimalsApplyNote')}
         </p>
       </div>
 
       <div className="mt-6">
-        <h2 className="text-sm font-semibold text-zinc-700">Attendance &amp; overtime</h2>
+        <h2 className="text-sm font-semibold text-zinc-700">{t('attendanceOvertimeHeading')}</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Used to turn attendance (present/absent/half-day) into pay for weekly-salary and
-          hybrid workers — a per-day rate is derived from their weekly salary, and overtime is
-          paid on top at this multiplier. Doesn&apos;t affect contract workers.
+          {t('attendanceOvertimeDescription')}
         </p>
         <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
             <label htmlFor="standardDaysPerWeek" className="block text-xs font-medium text-zinc-500">
-              Standard days/week
+              {t('standardDaysPerWeekLabel')}
             </label>
             <input
               id="standardDaysPerWeek"
@@ -242,7 +239,7 @@ export function SettingsForm({
           </div>
           <div>
             <label htmlFor="standardHoursPerDay" className="block text-xs font-medium text-zinc-500">
-              Standard hours/day
+              {t('standardHoursPerDayLabel')}
             </label>
             <input
               id="standardHoursPerDay"
@@ -257,7 +254,7 @@ export function SettingsForm({
           </div>
           <div>
             <label htmlFor="overtimeRateMultiplier" className="block text-xs font-medium text-zinc-500">
-              Overtime rate multiplier
+              {t('overtimeRateMultiplierLabel')}
             </label>
             <input
               id="overtimeRateMultiplier"
@@ -278,7 +275,7 @@ export function SettingsForm({
         disabled={pending}
         className="mt-6 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Saving…' : 'Save'}
+        {pending ? tc('saving') : tc('save')}
       </button>
     </form>
   )

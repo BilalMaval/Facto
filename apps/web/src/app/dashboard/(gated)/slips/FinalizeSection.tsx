@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { formatMoney, formatNumber, formatSigned } from '@/lib/format'
 import { finalizeSlip } from './actions'
 
@@ -30,6 +31,7 @@ export function FinalizeSection({
   currency: string
   showDecimals: boolean
 }) {
+  const t = useTranslations('slips')
   // Deliberately starts empty rather than pre-filled with the computed
   // payable amount — an admin should type the amount they're actually
   // paying, not accept a default without looking at it.
@@ -53,14 +55,14 @@ export function FinalizeSection({
 
       <div className="flex items-center justify-between gap-3">
         <label htmlFor="finalAmount-input" className="font-semibold">
-          Final Amount
+          {t('finalize.finalAmountLabel')}
         </label>
         <input
           id="finalAmount-input"
           type="text"
           inputMode="decimal"
           required
-          placeholder="Enter amount to pay"
+          placeholder={t('finalize.finalAmountPlaceholder')}
           value={finalAmount}
           onChange={(e) => setFinalAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
           onBlur={() => {
@@ -75,13 +77,13 @@ export function FinalizeSection({
       {finalAmount.trim() !== '' && (
         <>
           {delta < 0 && (
-            <SummaryRow label="Advance -" value={delta} signed currency={currency} showDecimals={showDecimals} />
+            <SummaryRow label={t('detail.advanceMinus')} value={delta} signed currency={currency} showDecimals={showDecimals} />
           )}
           {delta > 0 && (
-            <SummaryRow label="Advance +" value={delta} signed currency={currency} showDecimals={showDecimals} />
+            <SummaryRow label={t('detail.advancePlus')} value={delta} signed currency={currency} showDecimals={showDecimals} />
           )}
           <SummaryRow
-            label="Total Advance (after finalizing)"
+            label={t('finalize.totalAdvanceAfter')}
             value={projectedAdvance}
             bold
             currency={currency}
@@ -95,7 +97,7 @@ export function FinalizeSection({
           type="submit"
           className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
         >
-          Finalize week
+          {t('finalize.finalizeWeek')}
         </button>
       </div>
     </form>

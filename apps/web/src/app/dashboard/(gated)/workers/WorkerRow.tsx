@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
+import { useTranslations } from 'next-intl'
 import { calculateAge } from '@/lib/age'
 import { formatCnic } from '@/lib/cnic'
 import { compressImage } from '@/lib/compressImage'
@@ -55,6 +56,8 @@ export function WorkerRow({
   viewerRole: string
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('workers')
+  const tc = useTranslations('common')
   const isOwner = viewerRole === 'owner'
   const [state, formAction, pending] = useActionState(updateWorker, initialState)
   const [paymentTypeState, paymentTypeFormAction, paymentTypePending] = useActionState(
@@ -117,7 +120,7 @@ export function WorkerRow({
           <img src={photoUrl} alt={worker.name} className="h-20 w-20 rounded-md object-cover" />
         ) : (
           <div className="flex h-20 w-20 items-center justify-center rounded-md bg-zinc-100 text-xs text-zinc-400">
-            No photo
+            {t('row.noPhoto')}
           </div>
         )}
         <form action={uploadWorkerPhoto} className="flex flex-col items-center gap-1">
@@ -136,7 +139,7 @@ export function WorkerRow({
             disabled={compressingPhoto}
             className="text-xs text-zinc-600 underline hover:text-zinc-900 disabled:opacity-50"
           >
-            {compressingPhoto ? 'Compressing…' : 'Upload'}
+            {compressingPhoto ? t('row.compressing') : t('row.upload')}
           </button>
         </form>
       </div>
@@ -147,7 +150,7 @@ export function WorkerRow({
 
           {!isOwner && (
             <p className="sm:col-span-2 text-xs text-zinc-400">
-              Only the business owner can edit a worker&apos;s profile.
+              {t('row.ownerOnlyNotice')}
             </p>
           )}
 
@@ -157,7 +160,7 @@ export function WorkerRow({
 
           <div>
             <label htmlFor={`${worker.id}-workerCode`} className="block text-xs font-medium text-zinc-500">
-              Worker ID <span className="text-zinc-400">(optional)</span>
+              {t('form.workerIdLabel')} <span className="text-zinc-400">{t('form.optional')}</span>
             </label>
             <input
               id={`${worker.id}-workerCode`}
@@ -172,7 +175,7 @@ export function WorkerRow({
 
           <div>
             <label htmlFor={`${worker.id}-name`} className="block text-xs font-medium text-zinc-500">
-              Name
+              {t('form.nameLabel')}
             </label>
             <input
               id={`${worker.id}-name`}
@@ -188,7 +191,7 @@ export function WorkerRow({
 
           <Field
             idPrefix={worker.id}
-            label="Father's name"
+            label={t('form.fatherNameLabel')}
             name="fatherName"
             defaultValue={worker.father_name ?? ''}
             disabled={!isOwner}
@@ -196,7 +199,7 @@ export function WorkerRow({
 
           <div>
             <label htmlFor={`${worker.id}-cnic`} className="block text-xs font-medium text-zinc-500">
-              CNIC
+              {t('form.cnicLabel')}
             </label>
             <input
               id={`${worker.id}-cnic`}
@@ -205,32 +208,32 @@ export function WorkerRow({
               required
               disabled={!isOwner}
               inputMode="numeric"
-              placeholder="34101-1234567-1"
+              placeholder={t('form.cnicPlaceholder')}
               maxLength={15}
               value={cnic}
               onChange={(e) => handleCnicChange(e.target.value)}
               className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500"
             />
-            {isOwner && <CodeAvailabilityHint status={cnicStatus} label="CNIC" />}
+            {isOwner && <CodeAvailabilityHint status={cnicStatus} label={t('form.cnicLabel')} />}
           </div>
 
           <Field
             idPrefix={worker.id}
-            label="Contact no."
+            label={t('form.contactNoLabel')}
             name="contactNo"
             defaultValue={worker.contact_no ?? ''}
             disabled={!isOwner}
           />
           <Field
             idPrefix={worker.id}
-            label="Designation"
+            label={t('form.designationLabel')}
             name="designation"
             defaultValue={worker.designation ?? ''}
             disabled={!isOwner}
           />
           <Field
             idPrefix={worker.id}
-            label="Address"
+            label={t('form.addressLabel')}
             name="address"
             defaultValue={worker.address ?? ''}
             disabled={!isOwner}
@@ -238,7 +241,7 @@ export function WorkerRow({
 
           <div>
             <label htmlFor={`${worker.id}-dateOfBirth`} className="block text-xs font-medium text-zinc-500">
-              Date of birth
+              {t('form.dateOfBirthLabel')}
             </label>
             <DatePicker
               id={`${worker.id}-dateOfBirth`}
@@ -250,12 +253,12 @@ export function WorkerRow({
               max={todayStr()}
               className="mt-1"
             />
-            {age !== null && <p className="mt-1 text-xs text-zinc-500">Age: {age}</p>}
+            {age !== null && <p className="mt-1 text-xs text-zinc-500">{t('form.age', { age })}</p>}
           </div>
 
           <div className="sm:col-span-2 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-zinc-500">
-              Advance balance:{' '}
+              {t('row.advanceBalance')}{' '}
               <span className="font-medium text-zinc-900">
                 {formatMoney(worker.advance_balance, currency, showDecimals)}
               </span>
@@ -266,7 +269,7 @@ export function WorkerRow({
                 disabled={pending || cnicStatus === 'taken'}
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
               >
-                {pending ? 'Saving…' : 'Save'}
+                {pending ? tc('saving') : tc('save')}
               </button>
             )}
           </div>
@@ -285,7 +288,7 @@ export function WorkerRow({
 
           <div>
             <label htmlFor={`${worker.id}-employmentType`} className="block text-xs font-medium text-zinc-500">
-              Payment type
+              {t('form.paymentTypeLabel')}
             </label>
             <select
               id={`${worker.id}-employmentType`}
@@ -294,16 +297,16 @@ export function WorkerRow({
               onChange={(e) => setEmploymentType(e.target.value as EmploymentType)}
               className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
             >
-              <option value="contract">Contract — paid per work logged</option>
-              <option value="salary">Salary — fixed weekly amount</option>
-              <option value="hybrid">Hybrid — work logged + weekly salary</option>
+              <option value="contract">{t('form.paymentTypeContract')}</option>
+              <option value="salary">{t('form.paymentTypeSalary')}</option>
+              <option value="hybrid">{t('form.paymentTypeHybrid')}</option>
             </select>
           </div>
 
           {employmentType !== 'contract' && (
             <div>
               <label htmlFor={`${worker.id}-weeklySalary`} className="block text-xs font-medium text-zinc-500">
-                Weekly Salary
+                {t('form.weeklySalaryLabel')}
               </label>
               <input
                 id={`${worker.id}-weeklySalary`}
@@ -323,7 +326,7 @@ export function WorkerRow({
             disabled={paymentTypePending}
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
           >
-            {paymentTypePending ? 'Saving…' : 'Save payment type'}
+            {paymentTypePending ? tc('saving') : t('row.savePaymentType')}
           </button>
         </form>
       </div>
@@ -338,7 +341,7 @@ export function WorkerRow({
             worker.is_active ? 'text-red-600 hover:bg-red-50' : 'text-emerald-700 hover:bg-emerald-50'
           }`}
         >
-          {worker.is_active ? 'Deactivate' : 'Activate'}
+          {worker.is_active ? t('row.deactivate') : t('row.activate')}
         </button>
       </form>
     </div>

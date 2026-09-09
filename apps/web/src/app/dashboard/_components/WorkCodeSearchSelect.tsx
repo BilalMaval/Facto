@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 
 type WorkCode = { id: string; code: string; description: string; rate: number }
 
@@ -13,7 +14,7 @@ export function WorkCodeSearchSelect({
   workCodes,
   value,
   onChange,
-  placeholder = 'Search a work code…',
+  placeholder,
 }: {
   id?: string
   workCodes: WorkCode[]
@@ -21,6 +22,7 @@ export function WorkCodeSearchSelect({
   onChange: (workCodeId: string) => void
   placeholder?: string
 }) {
+  const t = useTranslations()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
 
@@ -40,7 +42,7 @@ export function WorkCodeSearchSelect({
         id={id}
         type="text"
         value={displayValue}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('filters.workCodeSearchPlaceholder')}
         onChange={(e) => {
           setQuery(e.target.value)
           setOpen(true)
@@ -67,7 +69,7 @@ export function WorkCodeSearchSelect({
               {workCodeLabel(wc)}
             </li>
           ))}
-          {filtered.length === 0 && <li className="px-3 py-2 text-zinc-400">No matches</li>}
+          {filtered.length === 0 && <li className="px-3 py-2 text-zinc-400">{t('common.noMatches')}</li>}
         </ul>
       )}
     </div>

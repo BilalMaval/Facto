@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { workerLabel } from '@/lib/format'
 
 type Worker = { id: string; worker_code: string | null; name: string; is_active: boolean }
@@ -10,7 +11,7 @@ export function WorkerSearchSelect({
   workers,
   value,
   onChange,
-  placeholder = 'Search worker by name or ID…',
+  placeholder,
   allowAll = true,
 }: {
   id?: string
@@ -20,6 +21,7 @@ export function WorkerSearchSelect({
   placeholder?: string
   allowAll?: boolean
 }) {
+  const t = useTranslations()
   const [query, setQuery] = useState('')
   const [open, setOpen] = useState(false)
 
@@ -39,7 +41,7 @@ export function WorkerSearchSelect({
         id={id}
         type="text"
         value={displayValue}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('filters.workerSearchPlaceholder')}
         onChange={(e) => {
           setQuery(e.target.value)
           setOpen(true)
@@ -63,7 +65,7 @@ export function WorkerSearchSelect({
               }}
               className="cursor-pointer px-3 py-2 text-zinc-500 hover:bg-zinc-50"
             >
-              All workers
+              {t('filters.allWorkersOption')}
             </li>
           )}
           {filtered.map((w) => (
@@ -77,10 +79,10 @@ export function WorkerSearchSelect({
               className="cursor-pointer px-3 py-2 hover:bg-zinc-50"
             >
               {workerLabel(w)}
-              {!w.is_active && <span className="text-zinc-400"> (inactive)</span>}
+              {!w.is_active && <span className="text-zinc-400">{t('filters.inactiveSuffix')}</span>}
             </li>
           ))}
-          {filtered.length === 0 && <li className="px-3 py-2 text-zinc-400">No matches</li>}
+          {filtered.length === 0 && <li className="px-3 py-2 text-zinc-400">{t('common.noMatches')}</li>}
         </ul>
       )}
     </div>

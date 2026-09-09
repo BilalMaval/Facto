@@ -504,6 +504,24 @@ export type Database = {
           },
         ]
       }
+      user_settings: {
+        Row: {
+          preferred_language: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          preferred_language?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          preferred_language?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       weekly_slips: {
         Row: {
           advance_delta: number

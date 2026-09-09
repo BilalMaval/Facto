@@ -2,15 +2,17 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 
 export type FormState = { error?: string; success?: boolean } | null
 
-function friendlyMessage(error: { code?: string; message: string }) {
+async function friendlyMessage(error: { code?: string; message: string }) {
+  const t = await getTranslations()
   if (error.code === '23505') {
-    return 'This email already has a pending invitation.'
+    return t('team.errors.pendingInvitationExists')
   }
-  return error.message
+  return t('common.genericError')
 }
 
 export async function checkInviteEmailAvailable(organizationId: string, email: string) {
@@ -30,12 +32,13 @@ export async function checkInviteEmailAvailable(organizationId: string, email: s
 }
 
 export async function inviteMember(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('team.errors')
   const orgId = String(formData.get('organizationId') ?? '')
   const email = String(formData.get('email') ?? '').trim()
   const role = String(formData.get('role') ?? '')
 
   if (!email || (role !== 'admin' && role !== 'staff')) {
-    return { error: 'Enter a valid email and role' }
+    return { error: t('invalidEmailRole') }
   }
 
   const supabase = await createClient()
@@ -46,7 +49,7 @@ export async function inviteMember(_prevState: FormState, formData: FormData): P
   })
 
   if (error) {
-    return { error: friendlyMessage(error) }
+    return { error: await friendlyMessage(error) }
   }
 
   revalidatePath('/dashboard/team')
@@ -54,6 +57,7 @@ export async function inviteMember(_prevState: FormState, formData: FormData): P
 }
 
 export async function revokeInvite(formData: FormData) {
+  const t = await getTranslations()
   const invitationId = String(formData.get('invitationId') ?? '')
 
   const supabase = await createClient()
@@ -62,7 +66,7 @@ export async function revokeInvite(formData: FormData) {
   })
 
   if (error) {
-    redirect(`/dashboard/team?error=${encodeURIComponent(error.message)}`)
+    redirect(`/dashboard/team?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard/team')
@@ -71,6 +75,7 @@ export async function revokeInvite(formData: FormData) {
 // Owner-only — RLS also enforces this, this is just a clean error message
 // instead of a silent no-op.
 export async function removeMember(formData: FormData) {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const userId = String(formData.get('userId') ?? '')
 
@@ -82,7 +87,7 @@ export async function removeMember(formData: FormData) {
     .eq('user_id', userId)
 
   if (error) {
-    redirect(`/dashboard/team?error=${encodeURIComponent(error.message)}`)
+    redirect(`/dashboard/team?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard/team')
@@ -90,13 +95,14 @@ export async function removeMember(formData: FormData) {
 
 // Any non-owner member can leave their own business whenever they want.
 export async function leaveOrganization(formData: FormData) {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('leave_organization', { p_org_id: organizationId })
 
   if (error) {
-    redirect(`/dashboard/team?error=${encodeURIComponent(error.message)}`)
+    redirect(`/dashboard/team?error=${encodeURIComponent(t('common.genericError'))}`)
   }
 
   revalidatePath('/dashboard', 'layout')

@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { toggleWorkCodeActive, updateWorkCode, type FormState } from './actions'
 
 type WorkCode = {
@@ -14,6 +15,8 @@ type WorkCode = {
 const initialState: FormState = null
 
 export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
+  const t = useTranslations('workCodes')
+  const tc = useTranslations('common')
   const [state, formAction, pending] = useActionState(updateWorkCode, initialState)
 
   const [description, setDescription] = useState(workCode.description)
@@ -23,7 +26,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
   return (
     <div className="flex flex-wrap items-end gap-3 py-4">
       <div className="w-28">
-        <p className="text-xs font-medium text-zinc-500">Code</p>
+        <p className="text-xs font-medium text-zinc-500">{t('form.codeLabel')}</p>
         <p className="mt-1 py-2 text-sm font-medium">{workCode.code}</p>
       </div>
 
@@ -36,7 +39,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
 
         <div className="flex-1 min-w-[180px]">
           <label htmlFor={`description-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
-            Description
+            {t('form.descriptionLabel')}
           </label>
           <input
             id={`description-${workCode.id}`}
@@ -49,12 +52,12 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
             className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
           />
           {touched.description && !description.trim() && (
-            <p className="mt-1 text-xs text-red-600">Description is required</p>
+            <p className="mt-1 text-xs text-red-600">{t('form.descriptionRequired')}</p>
           )}
         </div>
         <div className="w-32">
           <label htmlFor={`rate-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
-            Rate
+            {t('form.rateLabel')}
           </label>
           <input
             id={`rate-${workCode.id}`}
@@ -69,7 +72,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
             className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
           />
           {touched.rate && !(parseFloat(rate) > 0) && (
-            <p className="mt-1 text-xs text-red-600">Rate must be greater than 0</p>
+            <p className="mt-1 text-xs text-red-600">{t('form.rateInvalid')}</p>
           )}
         </div>
         <button
@@ -77,7 +80,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
           disabled={pending}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
         >
-          {pending ? 'Saving…' : 'Save'}
+          {pending ? tc('saving') : tc('save')}
         </button>
       </form>
 
@@ -90,7 +93,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
             workCode.is_active ? 'text-red-600 hover:bg-red-50' : 'text-emerald-700 hover:bg-emerald-50'
           }`}
         >
-          {workCode.is_active ? 'Deactivate' : 'Activate'}
+          {workCode.is_active ? t('row.deactivate') : t('row.activate')}
         </button>
       </form>
     </div>

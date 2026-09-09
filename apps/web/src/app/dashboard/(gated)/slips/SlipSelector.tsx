@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations, useLocale } from 'next-intl'
 import { addDays, resolveWeekBounds, type DateFormat, type WeekScheme, type WeekStartDay } from '@/lib/dates'
 import { WorkerSearchSelect } from '../../_components/WorkerSearchSelect'
 import { DatePicker } from '@/components/DatePicker'
@@ -29,6 +30,8 @@ export function SlipSelector({
   transitionDate: string | null
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('slips.selector')
+  const isRTL = useLocale() === 'ur'
   const scheme: WeekScheme = { weekStartDay, previousWeekStartDay, transitionDate }
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -54,7 +57,7 @@ export function SlipSelector({
     <div className="mt-6 flex flex-wrap items-end gap-3 print:hidden">
       <div className="min-w-[200px] flex-1">
         <label htmlFor="worker-select" className="block text-sm font-medium">
-          Worker
+          {t('workerLabel')}
         </label>
         <div className="mt-1">
           <WorkerSearchSelect
@@ -62,23 +65,23 @@ export function SlipSelector({
             workers={workers}
             value={workerId ?? ''}
             onChange={(id) => go({ workerId: id })}
-            placeholder="Search worker by name or ID"
+            placeholder={t('workerSearchPlaceholder')}
             allowAll={false}
           />
         </div>
       </div>
       <div className="shrink-0">
         <label htmlFor="weekStart" className="block text-sm font-medium">
-          Date
+          {t('dateLabel')}
         </label>
         <div className="mt-1 flex items-center gap-1">
           <button
             type="button"
             onClick={() => go({ weekStart: resolveWeekBounds(addDays(weekStart, -1), scheme).weekStart })}
-            aria-label="Previous week"
+            aria-label={t('previousWeek')}
             className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
           >
-            ‹
+            {isRTL ? '›' : '‹'}
           </button>
           <div className="w-44">
             <DatePicker
@@ -91,10 +94,10 @@ export function SlipSelector({
           <button
             type="button"
             onClick={() => go({ weekStart: resolveWeekBounds(addDays(weekEnd, 1), scheme).weekStart })}
-            aria-label="Next week"
+            aria-label={t('nextWeek')}
             className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm hover:bg-zinc-50"
           >
-            ›
+            {isRTL ? '‹' : '›'}
           </button>
         </div>
       </div>
@@ -113,7 +116,7 @@ export function SlipSelector({
               : 'rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium whitespace-nowrap text-zinc-700 hover:bg-zinc-50'
           }
         >
-          {weekStart === currentWeekStart ? 'Current week' : 'Go to current week'}
+          {weekStart === currentWeekStart ? t('currentWeek') : t('goToCurrentWeek')}
         </button>
       </div>
     </div>

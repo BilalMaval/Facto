@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useTranslations } from 'next-intl'
 import { startFreeTrial, type FormState } from './actions'
 
 const initialState: FormState = null
 
 export function StartTrialButton({ organizationId }: { organizationId: string }) {
+  const t = useTranslations('billing.startTrial')
   const [state, formAction, pending] = useActionState(startFreeTrial, initialState)
 
   return (
@@ -17,7 +19,7 @@ export function StartTrialButton({ organizationId }: { organizationId: string })
         disabled={pending}
         className="inline-flex w-full items-center justify-center rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50 sm:w-auto"
       >
-        {pending ? 'Starting…' : 'Start free trial (3 days)'}
+        {pending ? t('starting') : t('startFreeTrial')}
       </button>
     </form>
   )

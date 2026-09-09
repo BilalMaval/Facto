@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { getOwnerTier } from '@/lib/ownerPlan'
 import { createClient } from '@/lib/supabase/server'
@@ -14,6 +15,10 @@ const SUBMISSION_STATUS_STYLES: Record<string, string> = {
 }
 
 export default async function UpgradePage() {
+  const t = await getTranslations('upgrade')
+  const locale = await getLocale()
+  const tb = await getTranslations('billing')
+  const tn = await getTranslations('newBusiness')
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -46,49 +51,46 @@ export default async function UpgradePage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <Link href="/dashboard/settings" className="text-sm text-zinc-500 underline">
-        ← Settings
+        {tn('backToSettings')}
       </Link>
 
-      <h1 className="mt-4 text-2xl font-semibold tracking-tight">Unlock multiple businesses</h1>
+      <h1 className="mt-4 text-2xl font-semibold tracking-tight">{t('title')}</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        A monthly add-on that unlocks adding more businesses and activates {org.name}&apos;s own
-        subscription if it isn&apos;t already active. Billing then stays centralized here — every
-        business you add afterward is included at no extra charge.
+        {t('subtitle', { orgName: org.name })}
       </p>
 
       <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
-        <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">Multi-business access</p>
+        <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{t('multiBusinessAccess')}</p>
         <p className="mt-2 text-3xl font-semibold tracking-tight text-zinc-900">
           Rs. {Number(price).toLocaleString()}
-          <span className="text-base font-normal text-zinc-500">/month</span>
+          <span className="text-base font-normal text-zinc-500">{tb('perMonth')}</span>
         </p>
         <ul className="mt-4 space-y-1.5 text-sm text-zinc-600">
           <li className="flex gap-2">
-            <span className="text-emerald-600">✓</span> Add unlimited additional businesses
+            <span className="text-emerald-600">✓</span> {t('featureUnlimited')}
           </li>
           <li className="flex gap-2">
-            <span className="text-emerald-600">✓</span> Switch between them from any dashboard screen
+            <span className="text-emerald-600">✓</span> {t('featureSwitch')}
           </li>
           <li className="flex gap-2">
-            <span className="text-emerald-600">✓</span> Every additional business is included — no separate
-            subscription needed
+            <span className="text-emerald-600">✓</span> {t('featureIncluded')}
           </li>
         </ul>
       </div>
 
       <div className="mt-8">
-        <h2 className="text-lg font-semibold text-zinc-900">Pay to unlock</h2>
+        <h2 className="text-lg font-semibold text-zinc-900">{t('payToUnlockHeading')}</h2>
         <p className="mt-1 text-sm text-zinc-500">
-          Pay via Easypaisa, JazzCash, or bank transfer, then submit the details below. We&apos;ll verify,
-          unlock multi-business access, and activate {org.name}&apos;s own subscription if it isn&apos;t
-          already active.
+          {t('payToUnlockDescription', { orgName: org.name })}
         </p>
         {proration.credit > 0 && (
           <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-800">
-            You have {proration.daysRemaining} day{proration.daysRemaining === 1 ? '' : 's'} remaining on{' '}
-            {org.name}&apos;s current subscription — Rs. {proration.credit.toLocaleString()}{' '}
-            of that is credited toward unlocking multi-business access, so it isn&apos;t wasted.{' '}
-            <span className="font-medium">Amount to pay: Rs. {proration.amount.toLocaleString()}.</span>
+            {t('prorationCredit', {
+              count: proration.daysRemaining,
+              orgName: org.name,
+              credit: proration.credit.toLocaleString(),
+            })}
+            <span className="font-medium">{t('amountToPay', { amount: proration.amount.toLocaleString() })}</span>
           </div>
         )}
         <div className="mt-4">
@@ -97,7 +99,7 @@ export default async function UpgradePage() {
             defaultAmount={proration.amount}
             dateFormat={org.date_format as DateFormat}
             purpose="plan_upgrade"
-            successMessage="Request submitted — we'll review it, enable multi-business access, and activate your subscription shortly. You can track its status below."
+            successMessage={t('successMessage')}
             settings={{
               easypaisa_number: settings?.easypaisa_number ?? null,
               easypaisa_title: settings?.easypaisa_title ?? null,
@@ -117,32 +119,46 @@ export default async function UpgradePage() {
 
       {submissions && submissions.length > 0 && (
         <div className="mt-8">
-          <h2 className="text-lg font-semibold text-zinc-900">Upgrade request history</h2>
+          <h2 className="text-lg font-semibold text-zinc-900">{t('requestHistoryHeading')}</h2>
           <div className="mt-3 overflow-x-auto rounded-lg border border-zinc-200 bg-white shadow-sm">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium text-zinc-500">
-                  <th className="px-4 py-3">Date paid</th>
-                  <th className="px-4 py-3">Method</th>
-                  <th className="px-4 py-3">Reference</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Status</th>
+                <tr className="border-b border-zinc-200 bg-zinc-50 text-start text-xs font-medium text-zinc-500">
+                  <th className="px-4 py-3">{tb('tableDatePaid')}</th>
+                  <th className="px-4 py-3">{tb('tableMethod')}</th>
+                  <th className="px-4 py-3">{tb('tableReference')}</th>
+                  <th className="px-4 py-3 text-right">{tb('tableAmount')}</th>
+                  <th className="px-4 py-3">{tb('tableStatus')}</th>
                 </tr>
               </thead>
               <tbody>
                 {submissions.map((s) => (
                   <tr key={s.id} className="border-b border-zinc-100 last:border-0">
                     <td className="px-4 py-3 text-zinc-600">
-                      {formatDate(s.payment_date, org.date_format as DateFormat)}
+                      {formatDate(s.payment_date, org.date_format as DateFormat, locale)}
                     </td>
-                    <td className="px-4 py-3 text-zinc-600">{s.method.replace('_', ' ')}</td>
+                    <td className="px-4 py-3 text-zinc-600">
+                      {s.method === 'easypaisa'
+                        ? tb('form.easypaisa')
+                        : s.method === 'jazzcash'
+                          ? tb('form.jazzcash')
+                          : s.method === 'bank_transfer'
+                            ? tb('form.bankTransfer')
+                            : s.method.replace('_', ' ')}
+                    </td>
                     <td className="px-4 py-3 text-zinc-600">{s.transaction_reference}</td>
                     <td className="px-4 py-3 text-right text-zinc-600">{Number(s.amount).toFixed(2)}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${SUBMISSION_STATUS_STYLES[s.status] ?? 'bg-zinc-100 text-zinc-600'}`}
                       >
-                        {s.status}
+                        {s.status === 'pending'
+                          ? tb('submissionPending')
+                          : s.status === 'approved'
+                            ? tb('submissionApproved')
+                            : s.status === 'rejected'
+                              ? tb('submissionRejected')
+                              : s.status}
                       </span>
                       {s.status === 'rejected' && s.review_note && (
                         <p className="mt-1 text-xs text-zinc-400">{s.review_note}</p>

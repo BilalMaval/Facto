@@ -2,17 +2,19 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 
 export type FormState = { error?: string; success?: boolean } | null
 
 export async function createTicket(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const subject = String(formData.get('subject') ?? '').trim()
   const body = String(formData.get('body') ?? '').trim()
 
   if (!subject || !body) {
-    return { error: 'Subject and message are required' }
+    return { error: t('support.errors.subjectAndMessageRequired') }
   }
 
   const supabase = await createClient()
@@ -23,25 +25,26 @@ export async function createTicket(_prevState: FormState, formData: FormData): P
   })
 
   if (error) {
-    return { error: error.message }
+    return { error: t('common.genericError') }
   }
 
   redirect(`/dashboard/support/${ticketId}`)
 }
 
 export async function postReply(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations()
   const ticketId = String(formData.get('ticketId') ?? '')
   const body = String(formData.get('body') ?? '').trim()
 
   if (!body) {
-    return { error: 'Message cannot be empty' }
+    return { error: t('support.errors.messageCannotBeEmpty') }
   }
 
   const supabase = await createClient()
   const { error } = await supabase.rpc('post_ticket_message', { p_ticket_id: ticketId, p_body: body })
 
   if (error) {
-    return { error: error.message }
+    return { error: t('common.genericError') }
   }
 
   revalidatePath(`/dashboard/support/${ticketId}`)

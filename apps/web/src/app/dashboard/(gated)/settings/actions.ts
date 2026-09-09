@@ -1,6 +1,7 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { TIMEZONES, CURRENCIES, DATE_FORMATS } from '@/lib/preferences'
 import { nextAnchorOnOrAfter, today, type WeekStartDay } from '@/lib/dates'
@@ -30,6 +31,8 @@ export type FormState =
   | null
 
 export async function updateOrgSettings(_prevState: FormState, formData: FormData): Promise<FormState> {
+  const t = await getTranslations('settings.errors')
+  const tc = await getTranslations('common')
   const organizationId = String(formData.get('organizationId') ?? '')
   const weekStartDay = String(formData.get('weekStartDay') ?? '')
   const timezone = String(formData.get('timezone') ?? '')
@@ -41,25 +44,25 @@ export async function updateOrgSettings(_prevState: FormState, formData: FormDat
   const overtimeRateMultiplier = Number(formData.get('overtimeRateMultiplier') ?? '')
 
   if (weekStartDay !== 'monday' && weekStartDay !== 'saturday') {
-    return { error: 'Choose a valid week type' }
+    return { error: t('invalidWeekType') }
   }
-  if (!TIMEZONES.some((t) => t.value === timezone)) {
-    return { error: 'Choose a valid timezone' }
+  if (!TIMEZONES.some((tz) => tz.value === timezone)) {
+    return { error: t('invalidTimezone') }
   }
   if (!CURRENCIES.some((c) => c.value === currency)) {
-    return { error: 'Choose a valid currency' }
+    return { error: t('invalidCurrency') }
   }
   if (!DATE_FORMATS.some((d) => d.value === dateFormat)) {
-    return { error: 'Choose a valid date format' }
+    return { error: t('invalidDateFormat') }
   }
   if (!Number.isInteger(standardDaysPerWeek) || standardDaysPerWeek < 1 || standardDaysPerWeek > 7) {
-    return { error: 'Standard days/week must be a whole number between 1 and 7' }
+    return { error: t('invalidStandardDays') }
   }
   if (!(standardHoursPerDay > 0)) {
-    return { error: 'Standard hours/day must be greater than 0' }
+    return { error: t('invalidStandardHours') }
   }
   if (!(overtimeRateMultiplier >= 0)) {
-    return { error: 'Overtime rate multiplier must be zero or more' }
+    return { error: t('invalidOvertimeMultiplier') }
   }
 
   const supabase = await createClient()
@@ -105,7 +108,7 @@ export async function updateOrgSettings(_prevState: FormState, formData: FormDat
     .eq('id', organizationId)
 
   if (error) {
-    return { error: error.message }
+    return { error: tc('genericError') }
   }
 
   revalidatePath('/dashboard')

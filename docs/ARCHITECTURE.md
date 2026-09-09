@@ -70,7 +70,15 @@ Platform-agnostic contract, zero DOM/platform imports (same purity pattern as pa
 - `apps/web/.env.development.local` — loaded only by `next dev`, points at local Supabase (`127.0.0.1:54321`, the public demo anon key).
 - `apps/web/.env.production.local` — loaded only by `next build`/`next start`, points at the real production Supabase project.
 - `apps/web/src/lib/supabase/envGuard.ts` — a second, defensive layer: throws at process start if `NODE_ENV !== 'production'` and the configured URL isn't local, so a dev process can never accidentally talk to production.
-- No production **web hosting** exists yet — no domain purchased, no deployment target chosen. This is the single biggest remaining blocker for real end-to-end production use.
+- Domain purchased; no hosting/deployment target chosen yet, and the placeholder URLs in `tauri.conf.json`/`capabilities/default.json`/`PRODUCTION_APP_URL` (see below) haven't been updated to it. This is the remaining blocker for real end-to-end production use.
+
+## File storage (Cloudflare R2)
+
+- Worker photos and payment-proof uploads go through Cloudflare R2 (S3-compatible), not Supabase Storage — `apps/web/src/lib/storage/r2.ts` wraps `@aws-sdk/client-s3`/`@aws-sdk/s3-request-presigner` behind `uploadObject`/`getSignedReadUrl`, mirroring Supabase Storage's own upload/signed-URL shape so the 5 call sites (2 uploads, 3 reads) changed minimally.
+- R2 has no equivalent to Supabase Storage's per-object RLS, so the authorization that RLS used to provide on the two upload paths now lives in application code: `apps/web/src/lib/session.ts`'s `requireOrgRole(organizationId, roles)` queries `memberships` directly and is called before every upload. The three read paths didn't need a new check — they're each already gated transitively (worker-photo reads sit behind a `workers` table query that's RLS-scoped to org members; the admin payment-proofs review page sits behind `admin/layout.tsx`'s `isPlatformAdmin()` gate).
+- One R2 bucket, not two — `worker-photos` and `payment-proofs` are key prefixes within it (`worker-photos/{org_id}/...`, `payment-proofs/{org_id}/...`), not separate buckets. They used to be separate Supabase Storage buckets because each had its own bucket-level RLS policy; R2 has no per-bucket RLS at all, so that boundary wasn't doing any real work once authorization moved into application code — one bucket is simpler with no security tradeoff.
+- Env vars: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` — see `apps/web/.env.example`. Dev and production use separate R2 buckets, same split as the Supabase vars above; only the dev one is wired up so far.
+- The original Supabase Storage buckets/policies (`worker-photos`, `payment-proofs`) are left in the migrations, unused — no real data ever lived in them, and keeping them costs nothing while giving a trivial rollback path.
 
 ## Mobile production-safety (`apps/mobile`)
 
@@ -121,7 +129,7 @@ cd apps/desktop && npm run build
 
 ## Known remaining gaps (not yet fixed, not blocking current local work)
 
-- No production web hosting/domain — the single biggest blocker for any real end-to-end production test.
+- No production web hosting — domain is purchased, but no deployment target is chosen yet and the placeholder URLs (`tauri.conf.json`, `capabilities/default.json`, `PRODUCTION_APP_URL`) still need updating to it. The remaining blocker for any real end-to-end production test.
 - No Android release keystore, no Desktop code-signing certs.
 - No CI/CD pipeline (`.github/workflows` is empty) — the release guards currently rely on whoever runs the build commands doing so correctly; a CI check that fails a release build containing `usesCleartextTraffic` would close the last gap.
 - `npm audit` shows 6 high-severity advisories; `postcss`/`sharp` (transitive via `next`) are runtime-relevant and would need a deliberate, tested `next` upgrade to resolve — not done yet.

@@ -1,23 +1,26 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useLocale, useTranslations } from 'next-intl'
 import { formatDate, today as todayStr, type DateFormat } from '@/lib/dates'
 
-const MONTH_NAMES = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-const DAY_HEADERS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
+function monthNames(locale: string) {
+  return Array.from({ length: 12 }, (_, i) =>
+    new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' }).format(new Date(Date.UTC(2000, i, 1)))
+  )
+}
+
+// Node's ICU data has no distinct short/narrow weekday forms for Urdu (both
+// fall back to either the full name or plain Latin letters), so — like
+// WEEK_SCHEME_LABEL_BY_LOCALE in lib/dates.ts — this is a small manual table
+// rather than derived from Intl. Single-letter initials deliberately repeat
+// where the real names collide (both جمعرات and جمعہ start with ج) — this
+// mirrors how the English initials already repeat (Tue/Thu are both "T",
+// Sun/Sat are both "S"), disambiguated by column position either way.
+const DAY_HEADERS_BY_LOCALE: Record<string, string[]> = {
+  en: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+  ur: ['ا', 'پ', 'م', 'ب', 'ج', 'ج', 'ہ'],
+}
 
 type Segment = 'Y' | 'M' | 'D'
 // Order/width of each date component per format, plus the separator typed
@@ -136,7 +139,7 @@ export function DatePicker({
   disabled,
   min,
   max,
-  placeholder = 'Select date',
+  placeholder,
   className,
 }: {
   name?: string
@@ -150,6 +153,11 @@ export function DatePicker({
   placeholder?: string
   className?: string
 }) {
+  const locale = useLocale()
+  const t = useTranslations('datePicker')
+  const isRTL = locale === 'ur'
+  const MONTH_NAMES = monthNames(locale)
+  const DAY_HEADERS = DAY_HEADERS_BY_LOCALE[locale] ?? DAY_HEADERS_BY_LOCALE.en
   const [open, setOpen] = useState(false)
   const [typing, setTyping] = useState(false)
   const [typedDigits, setTypedDigits] = useState('')
@@ -216,7 +224,7 @@ export function DatePicker({
   const currentYear = new Date().getUTCFullYear()
   const yearOptions = Array.from({ length: 111 }, (_, i) => currentYear + 10 - i)
   const cells = buildGrid(viewYear, viewMonth)
-  const displayValue = typing ? maskDigits(typedDigits, dateFormat) : value ? formatDate(value, dateFormat) : ''
+  const displayValue = typing ? maskDigits(typedDigits, dateFormat) : value ? formatDate(value, dateFormat, locale) : ''
 
   return (
     <div ref={containerRef} className="relative">
@@ -232,15 +240,15 @@ export function DatePicker({
           onChange={handleTextChange}
           onFocus={handleTextFocus}
           onBlur={handleTextBlur}
-          placeholder={placeholder}
-          className={`min-w-0 flex-1 appearance-none bg-transparent py-2 pl-3 text-sm outline-none placeholder:text-zinc-400 ${disabled ? 'text-zinc-500' : ''}`}
+          placeholder={placeholder ?? t('selectDate')}
+          className={`min-w-0 flex-1 appearance-none bg-transparent py-2 ps-3 text-sm outline-none placeholder:text-zinc-400 ${disabled ? 'text-zinc-500' : ''}`}
         />
         <button
           type="button"
           disabled={disabled}
           onClick={() => (open ? setOpen(false) : openCalendar())}
-          aria-label="Open calendar"
-          className="flex shrink-0 items-center py-2 pr-3 text-zinc-400 hover:text-zinc-600 disabled:text-zinc-300"
+          aria-label={t('openCalendar')}
+          className="flex shrink-0 items-center py-2 pe-3 text-zinc-400 hover:text-zinc-600 disabled:text-zinc-300"
         >
           <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4">
             <rect x="3" y="4.5" width="14" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
@@ -255,10 +263,10 @@ export function DatePicker({
             <button
               type="button"
               onClick={() => shiftMonth(-1)}
-              aria-label="Previous month"
+              aria-label={t('previousMonth')}
               className="rounded px-2 py-1 text-sm hover:bg-zinc-100"
             >
-              ‹
+              {isRTL ? '›' : '‹'}
             </button>
             <div className="flex gap-1">
               <select
@@ -287,16 +295,16 @@ export function DatePicker({
             <button
               type="button"
               onClick={() => shiftMonth(1)}
-              aria-label="Next month"
+              aria-label={t('nextMonth')}
               className="rounded px-2 py-1 text-sm hover:bg-zinc-100"
             >
-              ›
+              {isRTL ? '‹' : '›'}
             </button>
           </div>
 
           <div className="mt-2 grid grid-cols-7 gap-0.5 text-center text-[11px] text-zinc-400">
-            {DAY_HEADERS.map((d) => (
-              <div key={d}>{d}</div>
+            {DAY_HEADERS.map((d, i) => (
+              <div key={i}>{d}</div>
             ))}
           </div>
           <div className="mt-1 grid grid-cols-7 gap-0.5">
@@ -337,7 +345,7 @@ export function DatePicker({
               }}
               className="text-xs text-zinc-500 underline hover:text-zinc-700"
             >
-              Today
+              {t('today')}
             </button>
             {value && (
               <button
@@ -348,7 +356,7 @@ export function DatePicker({
                 }}
                 className="text-xs text-zinc-500 underline hover:text-zinc-700"
               >
-                Clear
+                {t('clear')}
               </button>
             )}
           </div>

@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { getBillingState } from '@/lib/billing'
 import { createClient } from '@/lib/supabase/server'
@@ -11,6 +12,7 @@ import type { WeekStartDay } from '@/lib/dates'
 import { DashboardNav } from './DashboardNav'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
+  const t = await getTranslations('dashboardLayout')
   const { user, membership, memberships, membershipLookupFailed } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -23,10 +25,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       return (
         <div className="flex min-h-full flex-col items-center justify-center bg-zinc-50 px-4 py-16 text-center">
           <div className="max-w-md rounded-lg border border-zinc-200 bg-white p-8 shadow-sm">
-            <h1 className="text-lg font-semibold text-zinc-900">Can&apos;t reach the server</h1>
-            <p className="mt-2 text-sm text-zinc-500">
-              Your organization couldn&apos;t be loaded. Check your connection and try again.
-            </p>
+            <h1 className="text-lg font-semibold text-zinc-900">{t('reachErrorHeading')}</h1>
+            <p className="mt-2 text-sm text-zinc-500">{t('reachErrorDescription')}</p>
           </div>
         </div>
       )
@@ -73,10 +73,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
       {billing.status === 'grace' && (
         <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-sm text-amber-800 print:hidden">
-          Payment overdue — access will be suspended in {billing.daysRemaining} day
-          {billing.daysRemaining === 1 ? '' : 's'} unless you pay.{' '}
+          {t('paymentOverdueBanner', { count: billing.daysRemaining ?? 0 })}{' '}
           <Link href="/dashboard/billing" className="font-medium underline">
-            Pay now
+            {t('payNow')}
           </Link>
         </div>
       )}
@@ -85,13 +84,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {billing.status === 'trial' && billing.daysRemaining !== null && (
         <Link
           href="/dashboard/billing"
-          className="fixed right-5 top-28 z-30 flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-800 shadow-lg hover:bg-blue-100 print:hidden"
+          className="fixed end-5 top-28 z-30 flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-medium text-blue-800 shadow-lg hover:bg-blue-100 print:hidden"
         >
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-blue-500" />
           </span>
-          Free trial — {billing.daysRemaining} day{billing.daysRemaining === 1 ? '' : 's'} left
+          {t('trialBanner', { count: billing.daysRemaining })}
         </Link>
       )}
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { DatePicker } from '@/components/DatePicker'
 
 type SelectFilter = {
@@ -39,6 +40,7 @@ export function AdminFilterBar({
   // bars here can be browsed the same way instead of only free-typed.
   suggestions?: Suggestion[]
 }) {
+  const t = useTranslations('common')
   const router = useRouter()
   const searchParams = useSearchParams()
   const [text, setText] = useState(q)
@@ -79,7 +81,7 @@ export function AdminFilterBar({
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm">
       <div className="relative min-w-[220px] flex-1">
         <label htmlFor="admin-search" className="block text-sm font-medium">
-          Search
+          {t('search')}
         </label>
         <input
           id="admin-search"
@@ -108,7 +110,7 @@ export function AdminFilterBar({
                 {s.label}
               </li>
             ))}
-            {filteredSuggestions.length === 0 && <li className="px-3 py-2 text-zinc-400">No matches</li>}
+            {filteredSuggestions.length === 0 && <li className="px-3 py-2 text-zinc-400">{t('noMatches')}</li>}
           </ul>
         )}
       </div>
@@ -137,7 +139,7 @@ export function AdminFilterBar({
         <div className="flex gap-3">
           <div className="w-36">
             <label htmlFor="admin-filter-from" className="block text-sm font-medium">
-              From
+              {t('from')}
             </label>
             <DatePicker
               id="admin-filter-from"
@@ -149,7 +151,7 @@ export function AdminFilterBar({
           </div>
           <div className="w-36">
             <label htmlFor="admin-filter-to" className="block text-sm font-medium">
-              To
+              {t('to')}
             </label>
             <DatePicker
               id="admin-filter-to"

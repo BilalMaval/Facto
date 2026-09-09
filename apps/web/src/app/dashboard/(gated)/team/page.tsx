@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { ConfirmButton } from '../slips/ConfirmButton'
@@ -12,6 +13,8 @@ export default async function TeamPage({
   searchParams: Promise<{ error?: string }>
 }) {
   const { error } = await searchParams
+  const t = await getTranslations('team')
+  const tc = await getTranslations('common')
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -20,6 +23,8 @@ export default async function TeamPage({
   const org = membership.organization
   const canManage = membership.role === 'owner' || membership.role === 'admin'
   const isOwner = membership.role === 'owner'
+  const roleLabel = (role: string) =>
+    role === 'owner' ? tc('roleOwner') : role === 'admin' ? tc('roleAdmin') : tc('roleStaff')
 
   const supabase = await createClient()
   const [{ data: members }, { data: invitations }] = await Promise.all([
@@ -36,9 +41,9 @@ export default async function TeamPage({
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Team</h1>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
       <p className="mt-1 text-sm text-zinc-500">
-        {canManage ? `Invite admins or staff to ${org.name}.` : `Your team at ${org.name}.`}
+        {canManage ? t('subtitleManage', { orgName: org.name }) : t('subtitleView', { orgName: org.name })}
       </p>
 
       {error && (
@@ -48,12 +53,12 @@ export default async function TeamPage({
       {canManage && <InviteForm organizationId={org.id} />}
 
       <div className="mt-8">
-        <h2 className="text-sm font-medium text-zinc-500">Team members</h2>
+        <h2 className="text-sm font-medium text-zinc-500">{t('membersHeading')}</h2>
         {/* Owner isn't shown here — they're the business account, not a
             manageable team member (can't be removed or leave their own
             business). */}
         {!members?.some((m) => m.role !== 'owner') && (
-          <p className="mt-2 text-sm text-zinc-400">No other team members yet.</p>
+          <p className="mt-2 text-sm text-zinc-400">{t('noOtherMembers')}</p>
         )}
         <ul className="mt-2 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm empty:border-0 empty:shadow-none">
           {members
@@ -67,19 +72,19 @@ export default async function TeamPage({
                   <div>
                     <p className="text-sm font-medium">
                       {m.email}
-                      {isSelf && <span className="ml-1 text-xs text-zinc-400">(you)</span>}
+                      {isSelf && <span className="ms-1 text-xs text-zinc-400">{t('youSuffix')}</span>}
                     </p>
-                    <p className="text-xs text-zinc-500">{m.role}</p>
+                    <p className="text-xs text-zinc-500">{roleLabel(m.role)}</p>
                   </div>
                   {canRemove && (
                     <form action={removeMember}>
                       <input type="hidden" name="organizationId" value={org.id} />
                       <input type="hidden" name="userId" value={m.user_id} />
                       <ConfirmButton
-                        confirmText={`Remove ${m.email} from ${org.name}? They'll lose access immediately.`}
+                        confirmText={t('removeConfirm', { email: m.email, orgName: org.name })}
                         className="text-sm text-red-600 underline hover:text-red-800"
                       >
-                        Remove
+                        {t('remove')}
                       </ConfirmButton>
                     </form>
                   )}
@@ -87,10 +92,10 @@ export default async function TeamPage({
                     <form action={leaveOrganization}>
                       <input type="hidden" name="organizationId" value={org.id} />
                       <ConfirmButton
-                        confirmText={`Leave ${org.name}? You'll lose access immediately.`}
+                        confirmText={t('leaveConfirm', { orgName: org.name })}
                         className="text-sm text-red-600 underline hover:text-red-800"
                       >
-                        Leave
+                        {t('leave')}
                       </ConfirmButton>
                     </form>
                   )}
@@ -102,16 +107,16 @@ export default async function TeamPage({
 
       {canManage && (
         <div className="mt-8">
-          <h2 className="text-sm font-medium text-zinc-500">Pending invitations</h2>
+          <h2 className="text-sm font-medium text-zinc-500">{t('pendingInvitationsHeading')}</h2>
           {!invitations?.length && (
-            <p className="mt-2 text-sm text-zinc-400">No pending invitations.</p>
+            <p className="mt-2 text-sm text-zinc-400">{t('noPendingInvitations')}</p>
           )}
           <ul className="mt-2 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm empty:border-0 empty:shadow-none">
             {invitations?.map((invite) => (
               <li key={invite.id} className="flex items-center justify-between py-3">
                 <div>
                   <p className="text-sm font-medium">{invite.email}</p>
-                  <p className="text-xs text-zinc-500">{invite.role}</p>
+                  <p className="text-xs text-zinc-500">{roleLabel(invite.role)}</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <InviteLinkButton token={invite.token} />
@@ -121,7 +126,7 @@ export default async function TeamPage({
                       type="submit"
                       className="text-sm text-red-600 underline hover:text-red-800"
                     >
-                      Revoke
+                      {t('revoke')}
                     </button>
                   </form>
                 </div>

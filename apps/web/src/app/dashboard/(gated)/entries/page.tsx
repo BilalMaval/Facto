@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { one } from '@/lib/one'
@@ -34,6 +35,8 @@ export default async function EntriesPage({
     endDate: endDateParam,
     workerId: filterWorkerId,
   } = await searchParams
+  const t = await getTranslations('entries')
+  const locale = await getLocale()
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -103,12 +106,12 @@ export default async function EntriesPage({
 
   const [{ data: entries }, { data: payments }] = await Promise.all([entriesQuery, paymentsQuery])
 
-  const rangeLabel = periodLabel(period, range, org.date_format as DateFormat)
+  const rangeLabel = periodLabel(period, range, org.date_format as DateFormat, locale)
 
   return (
     <div className="mx-auto w-full max-w-4xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Daily entry</h1>
-      <p className="mt-1 text-sm text-zinc-500">Log today&apos;s output and payments for {org.name}.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <p className="mt-1 text-sm text-zinc-500">{t('subtitle', { orgName: org.name })}</p>
 
       {error && (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -116,9 +119,9 @@ export default async function EntriesPage({
 
       {!entryWorkers.length || !workCodes?.length ? (
         <p className="mt-6 rounded-md border border-dashed border-zinc-300 p-6 text-sm text-zinc-500">
-          {!entryWorkers.length && 'Add at least one active contract or hybrid worker. '}
-          {!workCodes?.length && 'Add at least one active work code. '}
-          Then come back here to log entries.
+          {!entryWorkers.length && t('missingWorkersPrompt')}
+          {!workCodes?.length && t('missingWorkCodesPrompt')}
+          {t('thenComeBack')}
         </p>
       ) : (
         <div className="mt-6">
@@ -142,7 +145,7 @@ export default async function EntriesPage({
       ) : null}
 
       <div className="mt-10">
-        <h2 className="text-sm font-medium text-zinc-500">Find entries &amp; payments</h2>
+        <h2 className="text-sm font-medium text-zinc-500">{t('findSectionTitle')}</h2>
         <div className="mt-2">
           <PeriodFilterBar
             basePath="/dashboard/entries"
@@ -158,8 +161,8 @@ export default async function EntriesPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="text-sm font-medium text-zinc-500">Entries ({rangeLabel})</h2>
-        {!entries?.length && <p className="mt-2 text-sm text-zinc-400">No entries in this period.</p>}
+        <h2 className="text-sm font-medium text-zinc-500">{t('entriesHeading', { range: rangeLabel })}</h2>
+        {!entries?.length && <p className="mt-2 text-sm text-zinc-400">{t('noEntries')}</p>}
         <ul className="mt-2 divide-y divide-zinc-200">
           {entries?.map((e) => {
             const worker = one<WorkerRef>(e.worker)
@@ -168,7 +171,7 @@ export default async function EntriesPage({
               <li key={e.id} className="flex items-center justify-between py-3 text-sm">
                 <div>
                   <span className="text-zinc-400">
-                    {formatDate(e.entry_date, org.date_format as DateFormat)} ·{' '}
+                    {formatDate(e.entry_date, org.date_format as DateFormat, locale)} ·{' '}
                     {formatTime(e.created_at, org.timezone)}
                   </span>{' '}
                   <span className="font-medium">{worker ? workerLabel(worker) : '—'}</span>{' '}
@@ -184,7 +187,7 @@ export default async function EntriesPage({
                   <form action={deleteEntry}>
                     <input type="hidden" name="id" value={e.id} />
                     <button type="submit" className="text-red-600 underline hover:text-red-800">
-                      Delete
+                      {t('delete')}
                     </button>
                   </form>
                 )}
@@ -195,8 +198,8 @@ export default async function EntriesPage({
       </div>
 
       <div className="mt-8">
-        <h2 className="text-sm font-medium text-zinc-500">Payments ({rangeLabel})</h2>
-        {!payments?.length && <p className="mt-2 text-sm text-zinc-400">No payments logged in this period.</p>}
+        <h2 className="text-sm font-medium text-zinc-500">{t('paymentsHeading', { range: rangeLabel })}</h2>
+        {!payments?.length && <p className="mt-2 text-sm text-zinc-400">{t('noPayments')}</p>}
         <ul className="mt-2 divide-y divide-zinc-200">
           {payments?.map((p) => {
             const worker = one<WorkerRef>(p.worker)
@@ -204,12 +207,12 @@ export default async function EntriesPage({
               <li key={p.id} className="flex items-center justify-between py-3 text-sm">
                 <div>
                   <span className="text-zinc-400">
-                    {formatDate(p.payment_date, org.date_format as DateFormat)} ·{' '}
+                    {formatDate(p.payment_date, org.date_format as DateFormat, locale)} ·{' '}
                     {formatTime(p.created_at, org.timezone)}
                   </span>{' '}
                   <span className="font-medium">{worker ? workerLabel(worker) : '—'}</span>{' '}
                   <span className="text-zinc-500">
-                    · paid{' '}
+                    · {t('paidLabel')}{' '}
                     <span className="font-medium text-zinc-900">
                       {formatMoney(p.amount, org.currency, org.show_decimals)}
                     </span>
@@ -220,7 +223,7 @@ export default async function EntriesPage({
                   <form action={deletePayment}>
                     <input type="hidden" name="id" value={p.id} />
                     <button type="submit" className="text-red-600 underline hover:text-red-800">
-                      Delete
+                      {t('delete')}
                     </button>
                   </form>
                 )}

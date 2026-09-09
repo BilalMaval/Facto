@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { formatDate, formatTime, type DateFormat } from '@/lib/dates'
@@ -14,6 +15,8 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default async function TicketPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  const t = await getTranslations('support')
+  const locale = await getLocale()
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -51,7 +54,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-10">
       <Link href="/dashboard/support" className="text-sm text-zinc-500 underline">
-        ← All tickets
+        {t('allTickets')}
       </Link>
 
       <div className="mt-4 flex items-center justify-between gap-3">
@@ -59,7 +62,13 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-medium ${STATUS_STYLES[ticket.status] ?? 'bg-zinc-100 text-zinc-600'}`}
         >
-          {ticket.status}
+          {ticket.status === 'open'
+            ? t('statusOpen')
+            : ticket.status === 'answered'
+              ? t('statusAnswered')
+              : ticket.status === 'closed'
+                ? t('statusClosed')
+                : ticket.status}
         </span>
       </div>
 
@@ -74,10 +83,10 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
                 }`}
               >
                 <p className={`text-xs font-medium ${isSelf ? 'text-zinc-300' : 'text-zinc-400'}`}>
-                  {isSelf ? 'You' : 'Support team'} ·{' '}
+                  {isSelf ? t('you') : t('supportTeam')} ·{' '}
                   {m.created_at && (
                     <>
-                      {formatDate(m.created_at.slice(0, 10), dateFormat)} {formatTime(m.created_at, timezone)}
+                      {formatDate(m.created_at.slice(0, 10), dateFormat, locale)} {formatTime(m.created_at, timezone, locale)}
                     </>
                   )}
                 </p>
@@ -94,7 +103,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
           <form action={closeTicket} className="mt-3">
             <input type="hidden" name="ticketId" value={ticket.id} />
             <button type="submit" className="text-sm text-zinc-500 underline">
-              Close this ticket
+              {t('closeTicket')}
             </button>
           </form>
         </>
@@ -105,7 +114,7 @@ export default async function TicketPage({ params }: { params: Promise<{ id: str
             type="submit"
             className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
           >
-            Reopen ticket
+            {t('reopenTicket')}
           </button>
         </form>
       )}

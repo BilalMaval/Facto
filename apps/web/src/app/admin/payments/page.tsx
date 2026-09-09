@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getSignedReadUrl } from '@/lib/storage/r2'
 import { ReviewForm } from './ReviewForm'
 import { AdminFilterBar } from '../AdminFilterBar'
 
@@ -38,11 +39,17 @@ export default async function AdminPaymentsPage({
 
   let rows = await Promise.all(
     (submissions ?? []).map(async (s) => {
-      const { data } = await supabase.storage.from('payment-proofs').createSignedUrl(s.proof_path, 3600)
       const org = (Array.isArray(s.organization) ? s.organization[0] : s.organization) as {
         name: string
       } | null
-      return { ...s, orgName: org?.name ?? '—', proofUrl: data?.signedUrl ?? null }
+      let proofUrl: string | null = null
+      try {
+        proofUrl = await getSignedReadUrl('payment-proofs', s.proof_path)
+      } catch {
+        // Graceful-degradation, same as before: a signing failure just
+        // means this row's proof link doesn't render.
+      }
+      return { ...s, orgName: org?.name ?? '—', proofUrl }
     })
   )
 

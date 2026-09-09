@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createOrganization, type FormState } from './actions'
 
 const initialState: FormState = null
 
 export function OnboardingForm() {
+  const t = useTranslations('auth.onboarding')
   const [state, formAction, pending] = useActionState(createOrganization, initialState)
 
   const [name, setName] = useState('')
@@ -21,27 +23,27 @@ export function OnboardingForm() {
 
       <div>
         <label htmlFor="name" className="block text-sm font-medium">
-          Organization name
+          {t('orgNameLabel')}
         </label>
         <input
           id="name"
           name="name"
           type="text"
           required
-          placeholder="e.g. Riverside Garments Ltd"
+          placeholder={t('orgNamePlaceholder')}
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => setTouched(true)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {nameEmpty && <p className="mt-1 text-xs text-red-600">Organization name is required</p>}
+        {nameEmpty && <p className="mt-1 text-xs text-red-600">{t('orgNameRequired')}</p>}
       </div>
       <button
         type="submit"
         disabled={pending}
         className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Creating…' : 'Create organization'}
+        {pending ? t('creating') : t('submit')}
       </button>
     </form>
   )

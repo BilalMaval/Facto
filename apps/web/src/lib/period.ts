@@ -36,11 +36,15 @@ export function periodRange(
   return { start: date, end: date }
 }
 
+const TO_WORD_BY_LOCALE: Record<string, string> = { en: 'to', ur: 'تا' }
+
 export function periodLabel(
   period: Period,
   range: { start: string; end: string },
-  dateFormat: DateFormat
+  dateFormat: DateFormat,
+  locale: string = 'en'
 ): string {
-  if (range.start === range.end) return formatDate(range.start, dateFormat)
-  return `${formatDate(range.start, dateFormat)} to ${formatDate(range.end, dateFormat)}`
+  if (range.start === range.end) return formatDate(range.start, dateFormat, locale)
+  const toWord = TO_WORD_BY_LOCALE[locale] ?? TO_WORD_BY_LOCALE.en
+  return `${formatDate(range.start, dateFormat, locale)} ${toWord} ${formatDate(range.end, dateFormat, locale)}`
 }

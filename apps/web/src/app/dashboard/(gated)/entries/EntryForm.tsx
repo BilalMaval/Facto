@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useMemo, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import type { FormState } from './actions'
 import { wrappedCreateEntry } from '@/lib/offlineQueue/webAppWiring'
 import { workerLabel } from '@/lib/format'
@@ -26,6 +27,7 @@ export function EntryForm({
   workCodes: WorkCode[]
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('entries')
   const [state, formAction, pending] = useActionState(wrappedCreateEntry, initialState)
 
   const [entryDate, setEntryDate] = useState(today)
@@ -84,13 +86,13 @@ export function EntryForm({
       )}
       {showQueuedBanner && (
         <p className="w-full rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
-          Saved locally — will sync when back online.
+          {t('savedLocallyBanner')}
         </p>
       )}
 
       <div className="w-40">
         <label htmlFor="entryDate" className="block text-sm font-medium">
-          Date
+          {t('form.dateLabel')}
         </label>
         <DatePicker
           id="entryDate"
@@ -103,7 +105,7 @@ export function EntryForm({
       </div>
       <div className="min-w-[180px] flex-1">
         <label htmlFor="workerId" className="block text-sm font-medium">
-          Worker
+          {t('form.workerLabel')}
         </label>
         <select
           id="workerId"
@@ -120,7 +122,7 @@ export function EntryForm({
       </div>
       <div className="min-w-[200px] flex-1">
         <label htmlFor="workCodeId" className="block text-sm font-medium">
-          Work code
+          {t('form.workCodeLabel')}
         </label>
         <WorkCodeSearchSelect
           id="workCodeId"
@@ -132,7 +134,7 @@ export function EntryForm({
       </div>
       <div className="w-28">
         <label htmlFor="quantity" className="block text-sm font-medium">
-          Quantity
+          {t('form.quantityLabel')}
         </label>
         <input
           key={quantityGeneration}
@@ -147,10 +149,10 @@ export function EntryForm({
           onBlur={() => setQuantityTouched(true)}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {quantityInvalid && <p className="mt-1 text-xs text-red-600">Enter a quantity greater than 0</p>}
+        {quantityInvalid && <p className="mt-1 text-xs text-red-600">{t('form.quantityInvalid')}</p>}
       </div>
       <div className="w-32">
-        <p className="block text-sm font-medium">Amount</p>
+        <p className="block text-sm font-medium">{t('form.amountLabel')}</p>
         <p className="mt-1 py-2 text-sm text-zinc-500">{previewAmount.toFixed(2)}</p>
       </div>
       <button
@@ -158,7 +160,7 @@ export function EntryForm({
         disabled={pending}
         className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Adding…' : 'Add entry'}
+        {pending ? t('form.adding') : t('form.addEntry')}
       </button>
     </form>
   )

@@ -1,11 +1,13 @@
 'use client'
 
 import { useActionState } from 'react'
+import { useTranslations } from 'next-intl'
 import { createTicket, type FormState } from './actions'
 
 const initialState: FormState = null
 
 export function NewTicketForm({ organizationId }: { organizationId: string }) {
+  const t = useTranslations('support.newTicket')
   const [state, formAction, pending] = useActionState(createTicket, initialState)
 
   return (
@@ -19,28 +21,28 @@ export function NewTicketForm({ organizationId }: { organizationId: string }) {
 
       <div>
         <label htmlFor="subject" className="block text-sm font-medium">
-          Subject
+          {t('subjectLabel')}
         </label>
         <input
           id="subject"
           name="subject"
           type="text"
           required
-          placeholder="What do you need help with?"
+          placeholder={t('subjectPlaceholder')}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
       </div>
 
       <div>
         <label htmlFor="body" className="block text-sm font-medium">
-          Message
+          {t('messageLabel')}
         </label>
         <textarea
           id="body"
           name="body"
           rows={3}
           required
-          placeholder="Describe the issue…"
+          placeholder={t('messagePlaceholder')}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
       </div>
@@ -50,7 +52,7 @@ export function NewTicketForm({ organizationId }: { organizationId: string }) {
         disabled={pending}
         className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Sending…' : 'Send to support'}
+        {pending ? t('sending') : t('sendToSupport')}
       </button>
     </form>
   )

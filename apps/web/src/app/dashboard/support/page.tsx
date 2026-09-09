@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { getTranslations, getLocale } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
 import { countUnreadByTicket } from '@/lib/support'
@@ -13,6 +14,8 @@ const STATUS_STYLES: Record<string, string> = {
 }
 
 export default async function SupportPage() {
+  const t = await getTranslations('support')
+  const locale = await getLocale()
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -45,8 +48,8 @@ export default async function SupportPage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Support</h1>
-      <p className="mt-1 text-sm text-zinc-500">Send questions to the platform team.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <p className="mt-1 text-sm text-zinc-500">{t('subtitle')}</p>
 
       <div className="mt-6">
         <NewTicketForm organizationId={membership.organization.id} />
@@ -54,35 +57,41 @@ export default async function SupportPage() {
 
       {tickets && tickets.length > 0 ? (
         <div className="mt-8 divide-y divide-zinc-100 rounded-lg border border-zinc-200 bg-white shadow-sm">
-          {tickets.map((t) => (
+          {tickets.map((ticket) => (
             <Link
-              key={t.id}
-              href={`/dashboard/support/${t.id}`}
+              key={ticket.id}
+              href={`/dashboard/support/${ticket.id}`}
               className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-zinc-50"
             >
               <div className="flex items-center gap-2">
                 <div>
-                  <p className="text-sm font-medium text-zinc-900">{t.subject}</p>
+                  <p className="text-sm font-medium text-zinc-900">{ticket.subject}</p>
                   <p className="text-xs text-zinc-400">
-                    Updated {t.updated_at ? formatDate(t.updated_at.slice(0, 10), dateFormat) : '—'}
+                    {ticket.updated_at ? t('updatedLabel', { date: formatDate(ticket.updated_at.slice(0, 10), dateFormat, locale) }) : '—'}
                   </p>
                 </div>
-                {(unreadByTicket.get(t.id) ?? 0) > 0 && (
+                {(unreadByTicket.get(ticket.id) ?? 0) > 0 && (
                   <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-semibold text-white">
-                    {(unreadByTicket.get(t.id) ?? 0) > 9 ? '9+' : unreadByTicket.get(t.id)}
+                    {(unreadByTicket.get(ticket.id) ?? 0) > 9 ? '9+' : unreadByTicket.get(ticket.id)}
                   </span>
                 )}
               </div>
               <span
-                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[t.status] ?? 'bg-zinc-100 text-zinc-600'}`}
+                className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_STYLES[ticket.status] ?? 'bg-zinc-100 text-zinc-600'}`}
               >
-                {t.status}
+                {ticket.status === 'open'
+                  ? t('statusOpen')
+                  : ticket.status === 'answered'
+                    ? t('statusAnswered')
+                    : ticket.status === 'closed'
+                      ? t('statusClosed')
+                      : ticket.status}
               </span>
             </Link>
           ))}
         </div>
       ) : (
-        <p className="mt-8 text-sm text-zinc-400">No tickets yet.</p>
+        <p className="mt-8 text-sm text-zinc-400">{t('noneYet')}</p>
       )}
     </div>
   )

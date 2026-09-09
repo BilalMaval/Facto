@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useTranslations } from 'next-intl'
 import { WorkerSearchSelect } from './WorkerSearchSelect'
 import { DatePicker } from '@/components/DatePicker'
 import type { Period } from '@/lib/period'
@@ -29,6 +30,8 @@ export function PeriodFilterBar({
   paramPrefix?: string
   dateFormat: DateFormat
 }) {
+  const t = useTranslations('filters')
+  const tc = useTranslations('common')
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -66,7 +69,7 @@ export function PeriodFilterBar({
     <div className="flex flex-wrap items-end gap-3 rounded-lg border border-zinc-200 bg-white p-4 shadow-sm print:hidden">
       <div className="w-36">
         <label htmlFor="period" className="block text-sm font-medium">
-          Period
+          {t('period')}
         </label>
         <select
           id="period"
@@ -74,11 +77,11 @@ export function PeriodFilterBar({
           onChange={(e) => go({ period: e.target.value as Period })}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         >
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="monthly">Monthly</option>
-          <option value="yearly">Yearly</option>
-          <option value="custom">Custom range</option>
+          <option value="daily">{t('daily')}</option>
+          <option value="weekly">{t('weekly')}</option>
+          <option value="monthly">{t('monthly')}</option>
+          <option value="yearly">{t('yearly')}</option>
+          <option value="custom">{t('customRange')}</option>
         </select>
       </div>
 
@@ -86,7 +89,7 @@ export function PeriodFilterBar({
         <>
           <div className="w-40">
             <label htmlFor="startDate" className="block text-sm font-medium">
-              From
+              {tc('from')}
             </label>
             <DatePicker
               id="startDate"
@@ -98,7 +101,7 @@ export function PeriodFilterBar({
           </div>
           <div className="w-40">
             <label htmlFor="endDate" className="block text-sm font-medium">
-              To
+              {tc('to')}
             </label>
             <DatePicker
               id="endDate"
@@ -112,7 +115,7 @@ export function PeriodFilterBar({
       ) : period === 'monthly' ? (
         <div className="w-40">
           <label htmlFor="date" className="block text-sm font-medium">
-            Month
+            {t('month')}
           </label>
           <input
             id="date"
@@ -125,7 +128,7 @@ export function PeriodFilterBar({
       ) : period === 'yearly' ? (
         <div className="w-28">
           <label htmlFor="date" className="block text-sm font-medium">
-            Year
+            {t('year')}
           </label>
           <input
             id="date"
@@ -141,7 +144,7 @@ export function PeriodFilterBar({
       ) : (
         <div className="w-40">
           <label htmlFor="date" className="block text-sm font-medium">
-            {period === 'weekly' ? 'Any day in week' : 'Date'}
+            {period === 'weekly' ? t('anyDayInWeek') : t('date')}
           </label>
           <DatePicker
             id="date"
@@ -155,7 +158,7 @@ export function PeriodFilterBar({
 
       <div className="min-w-[220px] flex-1">
         <label htmlFor="worker-search" className="block text-sm font-medium">
-          Worker
+          {t('worker')}
         </label>
         <div className="mt-1">
           <WorkerSearchSelect
@@ -163,7 +166,7 @@ export function PeriodFilterBar({
             workers={workers}
             value={workerId}
             onChange={(id) => go({ workerId: id })}
-            placeholder="All workers — search by name or ID"
+            placeholder={t('allWorkersPlaceholder')}
           />
         </div>
       </div>

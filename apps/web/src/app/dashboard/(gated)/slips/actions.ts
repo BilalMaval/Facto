@@ -2,6 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { isRetryableStatus } from '@/lib/supabase/retryableStatus'
@@ -9,6 +10,7 @@ import { isRetryableStatus } from '@/lib/supabase/retryableStatus'
 const ATTENDANCE_STATUSES = ['present', 'absent', 'half_day', 'holiday'] as const
 
 export async function finalizeSlip(formData: FormData) {
+  const t = await getTranslations()
   const organizationId = String(formData.get('organizationId') ?? '')
   const workerId = String(formData.get('workerId') ?? '')
   const weekStart = String(formData.get('weekStart') ?? '')
@@ -29,7 +31,7 @@ export async function finalizeSlip(formData: FormData) {
   })
 
   const qs = new URLSearchParams({ workerId, weekStart })
-  if (error) qs.set('error', error.message)
+  if (error) qs.set('error', t('common.genericError'))
   redirect(`${returnTo}?${qs.toString()}`)
 }
 
@@ -52,11 +54,12 @@ export async function saveAttendanceDay(input: {
   overtimeWage: number | null
   holidayWage: number
 }): Promise<{ error?: string; networkError?: boolean }> {
-  if (!ATTENDANCE_STATUSES.includes(input.status)) return { error: 'Invalid attendance status' }
+  const t = await getTranslations()
+  if (!ATTENDANCE_STATUSES.includes(input.status)) return { error: t('slips.errors.invalidStatus') }
 
   const supabase = await createClient()
   const user = await getResilientUser(supabase)
-  if (!user) return { error: 'Not signed in' }
+  if (!user) return { error: t('slips.errors.notSignedIn') }
 
   const overtimeHours = Number.isFinite(input.overtimeHours) && input.overtimeHours >= 0 ? input.overtimeHours : 0
   const overtimeWage =
@@ -81,7 +84,7 @@ export async function saveAttendanceDay(input: {
 
   // See isRetryableStatus (lib/supabase/retryableStatus.ts) and the matching
   // FormState.networkError comment in entries/actions.ts.
-  if (error) return { error: error.message, networkError: isRetryableStatus(status) }
+  if (error) return { error: t('common.genericError'), networkError: isRetryableStatus(status) }
 
   revalidatePath('/dashboard/slips')
   revalidatePath('/dashboard')
@@ -89,6 +92,7 @@ export async function saveAttendanceDay(input: {
 }
 
 export async function reopenSlip(formData: FormData) {
+  const t = await getTranslations()
   const slipId = String(formData.get('slipId') ?? '')
   const workerId = String(formData.get('workerId') ?? '')
   const weekStart = String(formData.get('weekStart') ?? '')
@@ -98,6 +102,6 @@ export async function reopenSlip(formData: FormData) {
   const { error } = await supabase.rpc('reopen_weekly_slip', { p_slip_id: slipId })
 
   const qs = new URLSearchParams({ workerId, weekStart })
-  if (error) qs.set('error', error.message)
+  if (error) qs.set('error', t('common.genericError'))
   redirect(`${returnTo}?${qs.toString()}`)
 }

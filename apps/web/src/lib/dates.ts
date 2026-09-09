@@ -17,7 +17,18 @@ const ANCHOR_DAY: Record<WeekStartDay, number> = { monday: 1, saturday: 6 }
 // slip's own weekTypeLabel (SlipView.tsx), which is derived from that
 // week's own start date and so can show the org's PAST scheme for an old
 // week, even after the org has since switched.
-export const WEEK_SCHEME_LABEL: Record<WeekStartDay, string> = { monday: 'Mon-Sat', saturday: 'Sat-Thu' }
+//
+// Not derivable from Intl (it's a custom compact shorthand, not a standard
+// date format), so — unlike formatDate/dayAbbr/formatTime below — this one
+// keeps its own tiny locale table instead.
+const WEEK_SCHEME_LABEL_BY_LOCALE: Record<string, Record<WeekStartDay, string>> = {
+  en: { monday: 'Mon-Sat', saturday: 'Sat-Thu' },
+  ur: { monday: 'پیر تا ہفتہ', saturday: 'ہفتہ تا جمعرات' },
+}
+
+export function weekSchemeLabel(weekStartDay: WeekStartDay, locale: string = 'en') {
+  return (WEEK_SCHEME_LABEL_BY_LOCALE[locale] ?? WEEK_SCHEME_LABEL_BY_LOCALE.en)[weekStartDay]
+}
 
 export function weekStartOf(dateStr: string, weekStartDay: WeekStartDay = 'monday') {
   const d = new Date(`${dateStr}T00:00:00Z`)
@@ -109,22 +120,26 @@ export function daySpan(startStr: string, endStr: string): number {
   return Math.round((Date.parse(`${endStr}T00:00:00Z`) - Date.parse(`${startStr}T00:00:00Z`)) / 86400000) + 1
 }
 
-export function formatTime(isoString: string, timeZone: string) {
-  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(
+export function formatTime(isoString: string, timeZone: string, locale: string = 'en') {
+  return new Intl.DateTimeFormat(locale, { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(
     new Date(isoString)
   )
 }
 
 export type DateFormat = 'YYYY-MM-DD' | 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'DD-MM-YYYY' | 'DD MMM YYYY'
 
-const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function monthAbbr(monthNumber: number, locale: string) {
+  return new Intl.DateTimeFormat(locale, { month: 'short', timeZone: 'UTC' }).format(
+    new Date(Date.UTC(2000, monthNumber - 1, 1))
+  )
+}
 
 // dateStr is always a plain YYYY-MM-DD calendar date (entry_date,
 // payment_date, week_start, …) — reformatted for display only, per the
 // org's own date_format preference. Native <input type="date"> pickers
 // still render in the browser's own locale format; only text/table
 // displays go through this.
-export function formatDate(dateStr: string, format: DateFormat) {
+export function formatDate(dateStr: string, format: DateFormat, locale: string = 'en') {
   const [y, m, d] = dateStr.split('-')
   switch (format) {
     case 'DD/MM/YYYY':
@@ -134,14 +149,14 @@ export function formatDate(dateStr: string, format: DateFormat) {
     case 'DD-MM-YYYY':
       return `${d}-${m}-${y}`
     case 'DD MMM YYYY':
-      return `${d} ${MONTH_ABBR[Number(m) - 1]} ${y}`
+      return `${d} ${monthAbbr(Number(m), locale)} ${y}`
     default:
       return dateStr
   }
 }
 
-const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-
-export function dayAbbr(dateStr: string) {
-  return DAY_ABBR[new Date(`${dateStr}T00:00:00Z`).getUTCDay()]
+export function dayAbbr(dateStr: string, locale: string = 'en') {
+  return new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' }).format(
+    new Date(`${dateStr}T00:00:00Z`)
+  )
 }

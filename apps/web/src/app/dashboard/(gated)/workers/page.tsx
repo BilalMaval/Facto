@@ -1,24 +1,13 @@
 import { redirect } from 'next/navigation'
+import { getTranslations } from 'next-intl/server'
 import { getCurrentMembership } from '@/lib/session'
 import { createClient } from '@/lib/supabase/server'
+import { getSignedReadUrl } from '@/lib/storage/r2'
 import { AdminFilterBar } from '@/app/admin/AdminFilterBar'
 import type { DateFormat } from '@/lib/dates'
 import { workerLabel } from '@/lib/format'
 import { WorkerForm } from './WorkerForm'
 import { WorkerRow, type EmploymentType } from './WorkerRow'
-
-const EMPLOYMENT_TYPE_OPTIONS = [
-  { value: '', label: 'All payment types' },
-  { value: 'contract', label: 'Contract' },
-  { value: 'salary', label: 'Salary' },
-  { value: 'hybrid', label: 'Hybrid' },
-]
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All statuses' },
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-]
 
 export default async function WorkersPage({
   searchParams,
@@ -26,6 +15,7 @@ export default async function WorkersPage({
   searchParams: Promise<{ error?: string; q?: string; employmentType?: string; status?: string }>
 }) {
   const { error, q = '', employmentType = '', status = '' } = await searchParams
+  const t = await getTranslations('workers')
   const { user, membership } = await getCurrentMembership()
 
   if (!user) redirect('/login')
@@ -33,6 +23,19 @@ export default async function WorkersPage({
   if (membership.role !== 'owner' && membership.role !== 'admin') redirect('/dashboard')
 
   const org = membership.organization
+
+  const EMPLOYMENT_TYPE_OPTIONS = [
+    { value: '', label: t('allPaymentTypes') },
+    { value: 'contract', label: t('contract') },
+    { value: 'salary', label: t('salary') },
+    { value: 'hybrid', label: t('hybrid') },
+  ]
+
+  const STATUS_OPTIONS = [
+    { value: '', label: t('allStatuses') },
+    { value: 'active', label: t('active') },
+    { value: 'inactive', label: t('inactive') },
+  ]
 
   const supabase = await createClient()
   const { data: allWorkers } = await supabase
@@ -56,17 +59,19 @@ export default async function WorkersPage({
   const photoUrls = new Map<string, string>()
   for (const w of workers) {
     if (w.photo_url) {
-      const { data } = await supabase.storage
-        .from('worker-photos')
-        .createSignedUrl(w.photo_url, 3600)
-      if (data?.signedUrl) photoUrls.set(w.id, data.signedUrl)
+      try {
+        photoUrls.set(w.id, await getSignedReadUrl('worker-photos', w.photo_url))
+      } catch {
+        // Same graceful-degradation as before: a signing failure just means
+        // this one worker's photo doesn't render, not a page-wide error.
+      }
     }
   }
 
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <h1 className="text-2xl font-semibold tracking-tight">Workers</h1>
-      <p className="mt-1 text-sm text-zinc-500">Worker profiles for {org.name}.</p>
+      <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
+      <p className="mt-1 text-sm text-zinc-500">{t('subtitle', { orgName: org.name })}</p>
 
       {error && (
         <p className="mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -75,14 +80,14 @@ export default async function WorkersPage({
       <AdminFilterBar
         basePath="/dashboard/workers"
         q={q}
-        searchPlaceholder="Search by name, Worker ID, or CNIC…"
+        searchPlaceholder={t('searchPlaceholder')}
         selects={[
-          { name: 'employmentType', label: 'Payment type', value: employmentType, options: EMPLOYMENT_TYPE_OPTIONS },
-          { name: 'status', label: 'Status', value: status, options: STATUS_OPTIONS },
+          { name: 'employmentType', label: t('filterPaymentType'), value: employmentType, options: EMPLOYMENT_TYPE_OPTIONS },
+          { name: 'status', label: t('filterStatus'), value: status, options: STATUS_OPTIONS },
         ]}
         suggestions={(allWorkers ?? []).map((w) => ({
           value: w.name,
-          label: workerLabel(w) + (w.is_active ? '' : ' (inactive)'),
+          label: workerLabel(w) + (w.is_active ? '' : t('inactiveSuffix')),
         }))}
       />
 
@@ -93,7 +98,7 @@ export default async function WorkersPage({
       <div className="mt-6 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm">
         {!workers.length && (
           <p className="py-4 text-sm text-zinc-400">
-            {allWorkers?.length ? 'No workers match these filters.' : 'No workers yet.'}
+            {allWorkers?.length ? t('noneMatchFilters') : t('noneYet')}
           </p>
         )}
         {workers.map((w) => (

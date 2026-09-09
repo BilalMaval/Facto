@@ -1,6 +1,8 @@
 import Link from 'next/link'
+import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
 import { getResilientUser } from '@/lib/supabase/resilientUser'
+import { LanguageSwitcher } from '@/components/LanguageSwitcher'
 import { acceptInvite } from './actions'
 
 export default async function InvitePage({
@@ -12,6 +14,8 @@ export default async function InvitePage({
 }) {
   const { token } = await params
   const { error } = await searchParams
+  const t = await getTranslations('invite')
+  const tc = await getTranslations('common')
 
   const supabase = await createClient()
 
@@ -28,8 +32,8 @@ export default async function InvitePage({
 
   if (!preview) {
     return (
-      <InviteShell>
-        <p className="text-sm text-zinc-600">This invitation link is invalid.</p>
+      <InviteShell heading={t('heading')}>
+        <p className="text-sm text-zinc-600">{t('invalidLink')}</p>
       </InviteShell>
     )
   }
@@ -39,19 +43,30 @@ export default async function InvitePage({
 
   if (!isUsable) {
     return (
-      <InviteShell>
+      <InviteShell heading={t('heading')}>
         <p className="text-sm text-zinc-600">
-          This invitation has {preview.status === 'pending' ? 'expired' : `already been ${preview.status}`}.
+          {isExpired
+            ? t('expired')
+            : t('alreadyStatus', {
+                status: preview.status === 'accepted' ? t('statusAccepted') : t('statusRevoked'),
+              })}
         </p>
       </InviteShell>
     )
   }
 
+  const roleLabel =
+    preview.role === 'owner' ? tc('roleOwner') : preview.role === 'admin' ? tc('roleAdmin') : tc('roleStaff')
+
   return (
-    <InviteShell>
+    <InviteShell heading={t('heading')}>
       <p className="text-sm text-zinc-600">
-        You&apos;ve been invited to join <span className="font-medium">{preview.organization_name}</span> as{' '}
-        <span className="font-medium">{preview.role}</span>.
+        {t.rich('invitedTo', {
+          orgName: preview.organization_name,
+          role: roleLabel,
+          orgTag: (chunks) => <span className="font-medium">{chunks}</span>,
+          roleTag: (chunks) => <span className="font-medium">{chunks}</span>,
+        })}
       </p>
 
       {error && (
@@ -65,7 +80,7 @@ export default async function InvitePage({
             type="submit"
             className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800"
           >
-            Accept invite as {user.email}
+            {t('acceptAs', { email: user.email ?? '' })}
           </button>
         </form>
       ) : (
@@ -74,13 +89,13 @@ export default async function InvitePage({
             href={`/signup?next=${encodeURIComponent(next)}&email=${encodeURIComponent(preview.email)}`}
             className="w-full rounded-md bg-zinc-900 px-3 py-2 text-center text-sm font-medium text-white hover:bg-zinc-800"
           >
-            Create an account to accept
+            {t('createAccountToAccept')}
           </Link>
           <Link
             href={`/login?next=${encodeURIComponent(next)}`}
             className="w-full rounded-md border border-zinc-300 px-3 py-2 text-center text-sm hover:bg-zinc-50"
           >
-            I already have an account — log in
+            {t('alreadyHaveAccount')}
           </Link>
         </div>
       )}
@@ -88,11 +103,14 @@ export default async function InvitePage({
   )
 }
 
-function InviteShell({ children }: { children: React.ReactNode }) {
+function InviteShell({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-1 items-center justify-center bg-zinc-50 px-4 py-16">
       <div className="w-full max-w-sm space-y-2 rounded-xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight">You&apos;re invited</h1>
+        <div className="flex items-start justify-between gap-3">
+          <h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
+          <LanguageSwitcher />
+        </div>
         {children}
       </div>
     </div>

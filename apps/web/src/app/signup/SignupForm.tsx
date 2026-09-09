@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useState } from 'react'
+import { useTranslations } from 'next-intl'
 import { signup, type FormState } from './actions'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -8,6 +9,7 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const initialState: FormState = null
 
 export function SignupForm({ next, prefillEmail }: { next: string; prefillEmail?: string }) {
+  const t = useTranslations('auth.signup')
   const [state, formAction, pending] = useActionState(signup, initialState)
 
   const [email, setEmail] = useState(prefillEmail ?? '')
@@ -30,7 +32,7 @@ export function SignupForm({ next, prefillEmail }: { next: string; prefillEmail?
 
       <div>
         <label htmlFor="email" className="block text-sm font-medium">
-          Email
+          {t('emailLabel')}
         </label>
         <input
           id="email"
@@ -44,12 +46,12 @@ export function SignupForm({ next, prefillEmail }: { next: string; prefillEmail?
           onBlur={() => setTouched((t) => ({ ...t, email: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm read-only:bg-zinc-100"
         />
-        {emailEmpty && <p className="mt-1 text-xs text-red-600">Email is required</p>}
-        {emailInvalid && <p className="mt-1 text-xs text-red-600">Enter a valid email address</p>}
+        {emailEmpty && <p className="mt-1 text-xs text-red-600">{t('emailRequired')}</p>}
+        {emailInvalid && <p className="mt-1 text-xs text-red-600">{t('emailInvalid')}</p>}
       </div>
       <div>
         <label htmlFor="password" className="block text-sm font-medium">
-          Password
+          {t('passwordLabel')}
         </label>
         <input
           id="password"
@@ -63,15 +65,15 @@ export function SignupForm({ next, prefillEmail }: { next: string; prefillEmail?
           onBlur={() => setTouched((t) => ({ ...t, password: true }))}
           className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
         />
-        {passwordEmpty && <p className="mt-1 text-xs text-red-600">Password is required</p>}
-        {passwordInvalid && <p className="mt-1 text-xs text-red-600">Password must be at least 6 characters</p>}
+        {passwordEmpty && <p className="mt-1 text-xs text-red-600">{t('passwordRequired')}</p>}
+        {passwordInvalid && <p className="mt-1 text-xs text-red-600">{t('passwordTooShort')}</p>}
       </div>
       <button
         type="submit"
         disabled={pending}
         className="w-full rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
       >
-        {pending ? 'Creating account…' : 'Sign up'}
+        {pending ? t('creatingAccount') : t('submit')}
       </button>
     </form>
   )

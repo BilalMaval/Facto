@@ -55,6 +55,29 @@ const lastKnownGood =
   globalForMembershipCache.__membershipLastKnownGood ??
   (globalForMembershipCache.__membershipLastKnownGood = new Map<string, MembershipResult>())
 
+// Storage (R2) has no equivalent to Supabase Storage's per-object RLS, so
+// upload paths that used to rely entirely on a storage.objects policy for
+// authorization (see uploadWorkerPhoto, submitPaymentProof) need this
+// explicit check instead. Queries `memberships` directly rather than going
+// through getCurrentMembership()/the active-org cookie, since the org being
+// authorized here comes from the submitted form field, not necessarily
+// whichever org happens to be active in the cookie.
+export async function requireOrgRole(organizationId: string, roles: string[]) {
+  const supabase = await createClient()
+  const user = await getResilientUser(supabase)
+  if (!user) return null
+
+  const { data } = await supabase
+    .from('memberships')
+    .select('role')
+    .eq('user_id', user.id)
+    .eq('organization_id', organizationId)
+    .maybeSingle()
+
+  if (!data || !roles.includes(data.role)) return null
+  return { user, role: data.role }
+}
+
 export const getCurrentMembership = cache(async function getCurrentMembership() {
   const supabase = await createClient()
 
