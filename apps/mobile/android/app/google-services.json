@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "60602029311",
+    "project_id": "facto-frb",
+    "storage_bucket": "facto-frb.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:60602029311:android:2486fa9b23e55a2cdc68ca",
+        "android_client_info": {
+          "package_name": "com.facto.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBNTF4VhnyIVtRnNusptJwti6Pc19Xhigo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
