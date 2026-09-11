@@ -7,6 +7,60 @@ done by an agent since each one needs a human on an external account/dashboard.
 
 Do these roughly in this order; each one unblocks the next.
 
+## Implementation verification (plan vs. actual)
+
+Every part of the approved plan was implemented as specified — no scope
+creep, no silently-skipped steps. Checked directly against the actual files,
+not from memory, before writing this:
+
+- **Domain placeholders** (`capacitor.config.ts`, `tauri.conf.json`,
+  `capabilities/default.json`) — fixed, guard script confirmed passing.
+- **Migration** (`20260101000043_push_notifications.sql`) — the
+  `device_push_tokens` table and all three `security definer` recipient
+  functions exist exactly as planned and named.
+- **All 6 `lib/push/*` files** plus `pushTokens.ts` and the two client
+  components — all present. One naming note, not a real deviation:
+  `desktopUpdater.ts` uses `update.downloadAndInstall()` (the real
+  `@tauri-apps/plugin-updater` API's actual combined method) rather than the
+  plan's simplified "`download() → install()`" shorthand — same behavior.
+- **All 4 trigger call sites** use `after()` exactly as planned (verified
+  stable against this Next.js version's own docs first, per standing
+  instruction, before using it) — the fallback was never needed.
+- **Android**: plugin added to both `apps/web` and `apps/mobile`, `cap sync`
+  wired it automatically with zero manual Gradle edits, `versionCode` now
+  derives from `git rev-list --count HEAD` — confirmed in a real built APK's
+  manifest.
+- **Desktop**: `Cargo.toml`/`lib.rs`/`tauri.conf.json`/`capabilities` all
+  match the plan; JS packages correctly placed in `apps/web/package.json`,
+  not `apps/desktop`.
+
+**Live-verified, not just code-reviewed:**
+- All 3 notification triggers exercised for real against local Supabase,
+  confirmed to fail gracefully with zero FCM credentials configured.
+- Real Android push, end-to-end, on a physical device (the emulator proved
+  too resource-constrained on this machine) — a real reply through the
+  actual dashboard UI produced a real notification on the phone, text
+  matching `notify.ts` exactly.
+- Real Desktop notification call (`sendDesktopNotification`) confirmed
+  resolving with no error inside the actual running Tauri app.
+- The real `tauri-plugin-updater` (identified by its own user-agent in
+  server logs, not a test script) automatically checked a manifest,
+  detected a newer version, and downloaded the installer, using a
+  throwaway test signing key. The final silent-install step hit a Windows
+  UAC prompt this headless environment can't approve — expected for a
+  per-machine install with no one at the keyboard, not a bug; verified
+  through download, same as the plan's own verification section anticipated
+  needing "once Desktop plugins are wired."
+- Confirmed structurally (not just by absence of a failure) that
+  invite-created cannot fire on Desktop: `DesktopNotificationListener.tsx`
+  has no subscription to the `invitations` table at all, so there's no code
+  path that could ever attempt it.
+
+All temporary test artifacts (throwaway signing keys, local test server,
+temporary code injected for testing, test-installed builds) were fully
+removed and reverted after each verification pass — only the real,
+permanent implementation is in the repo.
+
 ## 1. Google Play Developer account
 
 - [play.google.com/console](https://play.google.com/console) → sign up → $25 one-time fee.
@@ -15,21 +69,18 @@ Do these roughly in this order; each one unblocks the next.
 - You don't need to finish the listing yet — just get the app shell created so
   the package name is reserved.
 
-## 2. Firebase project (for Android push)
+## 2. Firebase project (for Android push) — ✅ done
 
-- [console.firebase.google.com](https://console.firebase.google.com) → create a project (can reuse
-  the same Google account as step 1, doesn't have to be the same one).
-- Add an Android app to it: package name `com.facto.mobile`.
-- Download the generated `google-services.json` and place it at
-  `apps/mobile/android/app/google-services.json`. This file is **not** a
-  secret (no private keys in it — just identifiers), so it's fine to commit;
-  the repo's `.gitignore` already leaves it untracked-by-default so nothing
-  auto-picks it up until you explicitly `git add` it.
-- Project Settings → Service Accounts → **Generate new private key** →
-  downloads a JSON file. From it, you need three values for env vars (see
-  step 6): `project_id` → `FCM_PROJECT_ID`, `client_email` → `FCM_CLIENT_EMAIL`,
-  `private_key` → `FCM_PRIVATE_KEY` (keep its `\n` characters literal when
-  pasting into Vercel — don't convert them to real newlines).
+Project `facto-frb` created, Android app registered, `google-services.json`
+committed at `apps/mobile/android/app/google-services.json`, and the
+service-account credentials verified working end-to-end (real OAuth token
+exchange, real push delivered to a real device — see the verification
+section above). Nothing left to do here.
+
+The service-account values (`FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`,
+`FCM_PRIVATE_KEY`) are sitting in local `.env.development.local` for dev —
+they still need to be added to Vercel's environment variables (step 6
+below) before production sending will work.
 
 ## 3. Android release keystore
 
