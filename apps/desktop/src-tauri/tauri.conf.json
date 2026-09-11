@@ -13,7 +13,7 @@
         "title": "Facto",
         "width": 1280,
         "height": 800,
-        "url": "https://production-domain-not-set.invalid"
+        "url": "https://munshiman.com"
       }
     ],
     "security": {
@@ -23,6 +23,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -30,5 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "PASTE-YOUR-TAURI-SIGNER-PUBLIC-KEY-HERE",
+      "endpoints": [
+        "https://github.com/BilalMaval/Facto/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

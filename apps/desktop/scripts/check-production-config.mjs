@@ -55,3 +55,18 @@ if (!covered) {
   )
   process.exit(1)
 }
+
+// Third check: the updater's public key must actually be set, or a
+// production build would ship an updater that can never verify any
+// update — same "make the unsafe state impossible to ship by accident"
+// pattern as the two checks above.
+const updaterPubkey = config.plugins?.updater?.pubkey ?? ''
+if (!updaterPubkey || updaterPubkey.startsWith('PASTE-YOUR-')) {
+  console.error(
+    'Refusing to build for production: tauri.conf.json\'s plugins.updater.pubkey ' +
+      'is still the placeholder. Run `tauri signer generate` once, store the ' +
+      'private key + password durably, and paste the printed public key into ' +
+      'tauri.conf.json.'
+  )
+  process.exit(1)
+}

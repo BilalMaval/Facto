@@ -96,13 +96,23 @@ The Android manifest has **no hardcoded cleartext flag** — Capacitor's own `ca
 
 ## Desktop production-safety (`apps/desktop`)
 
-`tauri.conf.json`'s window `url` is `https://production-domain-not-set.invalid` (RFC 2606 reserved TLD — guaranteed to never resolve, an intentional placeholder). `tauri.dev.conf.json` overrides just that field to `http://localhost:3001` via Tauri's `--config` merge, used by `npm run dev`.
+`tauri.conf.json`'s window `url` is `https://munshiman.com` (the real production domain — no longer a placeholder). `tauri.dev.conf.json` overrides just that field to `http://localhost:3001` via Tauri's `--config` merge, used by `npm run dev`.
 
-`npm run build` (production path) runs `node scripts/check-production-config.mjs && tauri build`. The guard script has two checks: (1) refuses to build while the placeholder is still set, and (2) — added after a real bug was found — verifies `capabilities/default.json`'s `remote.urls` actually covers whatever origin `tauri.conf.json`'s window will load. Without check 2, a production build would load fine but the webview would get **zero Tauri permissions** (including `store:default`, silently breaking the offline queue's Tauri Store adapter) — found by realizing the capabilities file was never updated in sync with the URL config, verified by testing both a mismatched and a matching case.
+`npm run build` (production path) runs `node scripts/check-production-config.mjs && tauri build`. The guard script has three checks: (1) refuses to build if the window URL is ever left as the `.invalid` placeholder again, (2) verifies `capabilities/default.json`'s `remote.urls` actually covers whatever origin `tauri.conf.json`'s window will load — without this, a production build would load fine but the webview would get **zero Tauri permissions** (including `store:default`, silently breaking the offline queue's Tauri Store adapter), and (3) refuses to build if `plugins.updater.pubkey` is still its placeholder (`PASTE-YOUR-...`) — see "Push notifications & auto-update" below.
 
-`capabilities/default.json`'s `remote.urls` currently lists `http://localhost:3001/*` (dev) and `https://production-domain-not-set.invalid/*` (placeholder, mirroring the same convention) — update both this and `tauri.conf.json`'s URL together once a real domain exists.
+`capabilities/default.json`'s `remote.urls` lists `http://localhost:3001/*` (dev) and `https://munshiman.com/*` (production) — update both this and `tauri.conf.json`'s URL together if the domain ever changes.
 
-No code-signing (Windows Authenticode / macOS notarization) is configured — a shipped installer will show an "unknown publisher" warning until that's added; not urgent, doesn't block building or running it.
+No code-signing (Windows Authenticode / macOS notarization) is configured — a shipped installer will show an "unknown publisher" warning until that's added; not urgent, doesn't block building, running, or auto-updating it.
+
+## Push notifications & auto-update
+
+Android gets **real push via Firebase Cloud Messaging (FCM)** — necessary because Android apps get suspended/killed and can't hold a live connection in the background. Desktop does **not** get a separate push service; it reuses the Realtime subscriptions the app already has (`RealtimeRefresh.tsx`, `realtimeSubscriptions.ts`) and fires a native OS notification via `tauri-plugin-notification` while the app is running (`DesktopNotificationListener.tsx`). Consequence: Desktop notifications only fire while the app is open, and **invite-created has no Desktop equivalent at all** — `invitations` RLS only grants the org's own owner/admin visibility, so the invitee's own session (the actual recipient) has no Realtime channel that event could ever arrive on. Android doesn't have this problem since FCM sending is a server-initiated HTTP call, independent of the recipient's session.
+
+- New table `device_push_tokens` (Android-only — Desktop never writes to it) plus three `security definer` RPCs (`get_ticket_reply_recipient_tokens`, `get_payment_submission_recipient_tokens`, `get_invite_recipient_tokens`) that each re-derive their own authorization, the same way `has_org_role`/`is_platform_admin` do — there's no service-role client anywhere in this app.
+- `apps/web/src/lib/push/fcm.ts` hand-rolls the FCM HTTP v1 client (Node's built-in `crypto`/`fetch`, no `firebase-admin`) — matches this codebase's existing "use the raw SDK directly" style (see `lib/storage/r2.ts`). Needs `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` set wherever the web app runs.
+- Desktop's auto-updater (`tauri-plugin-updater`) checks a `latest.json` manifest hosted via GitHub Releases on this repo (confirmed public, so no auth token needs to be embedded in the shipped binary) — `apps/web/src/lib/push/desktopUpdater.ts` runs the check/download/relaunch cycle on app start. The updater's own tamper-verification keypair (`tauri signer generate`, free and self-managed) is separate from OS-level code signing — generate it once, put the public key in `tauri.conf.json`'s `plugins.updater.pubkey`, keep the private key + password durably (same care as the Android keystore below).
+- `versionCode` in `apps/mobile/android/app/build.gradle` is derived from `git rev-list --count HEAD` at build time — strictly increasing automatically, so it can't be forgotten per Play Store release (Play Store rejects an upload whose versionCode doesn't exceed the last one).
+- No CI exists yet, so the release flow for both platforms is manual: run the build locally with the relevant signing env vars set, then create a GitHub Release (Desktop: upload the installer + `.sig` + `latest.json`) or upload to Play Console (Android).
 
 ## Building installables today
 
@@ -119,20 +129,21 @@ cd apps/desktop && npx tauri build --config src-tauri/tauri.dev.conf.json
 ```
 Produces a real `.msi`/`.exe` (or platform equivalent) pointed at `localhost:3001` — only usable on the machine running the dev server.
 
-**Real production installables** (blocked until domain + keystore exist):
+**Real production installables** (domain is set; blocked until the Android keystore and Tauri updater keypair exist):
 ```
-# once PRODUCTION_APP_URL / tauri.conf.json url / capabilities remote.urls are all set,
-# and an Android keystore exists (see RELEASE_SIGNING.md):
+# Android — once a keystore exists (see RELEASE_SIGNING.md):
 cd apps/mobile && npm run sync:prod && cd android && ./gradlew bundleRelease   # or assembleRelease
+# Desktop — once `tauri signer generate`'s pubkey is set in tauri.conf.json:
 cd apps/desktop && npm run build
 ```
 
 ## Known remaining gaps (not yet fixed, not blocking current local work)
 
-- No production web hosting — domain is purchased, but no deployment target is chosen yet and the placeholder URLs (`tauri.conf.json`, `capabilities/default.json`, `PRODUCTION_APP_URL`) still need updating to it. The remaining blocker for any real end-to-end production test.
-- No Android release keystore, no Desktop code-signing certs.
+- Live in production on Vercel at munshiman.com — no longer a gap.
+- No Android release keystore, no Desktop code-signing certs. No Google Play Developer account or Firebase project created yet either — both needed before push notifications/Play Store distribution can go live (see "Push notifications & auto-update" above for what's already wired in code vs. these remaining manual account-setup steps).
+- No Tauri updater signing keypair generated yet — `tauri.conf.json`'s `plugins.updater.pubkey` is a placeholder, and `check-production-config.mjs` refuses to build Desktop for production until it's set.
 - No CI/CD pipeline (`.github/workflows` is empty) — the release guards currently rely on whoever runs the build commands doing so correctly; a CI check that fails a release build containing `usesCleartextTraffic` would close the last gap.
-- `npm audit` shows 6 high-severity advisories; `postcss`/`sharp` (transitive via `next`) are runtime-relevant and would need a deliberate, tested `next` upgrade to resolve — not done yet.
+- `npm audit`: 0 vulnerabilities (was 1 critical + 5 high — fixed by upgrading to `next@16.3.4`, which patched two critical unauthenticated-RCE advisories, one of them live and reachable on production before the fix).
 - No custom `error.tsx`/`not-found.tsx`/`loading.tsx` anywhere in `apps/web` — relies on Next's defaults.
 - `AttendanceGrid.tsx`'s duplicated payroll-preview formula (see Payroll section above).
 - iOS: only the unmodified `cap add ios` scaffold exists; nothing about it has been tested (no Mac/Xcode available in this environment).

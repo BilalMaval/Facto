@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+// Strictly increasing automatically, so it can't be forgotten per release —
+// Play Store rejects an upload whose versionCode doesn't exceed the last
+// one. Relies on this repo's history staying linear (true so far).
+def gitVersionCode = "git rev-list --count HEAD".execute(null, rootDir).text.trim().toInteger()
+
 // ---- Release signing ----
 // Credentials come from environment variables first (so CI never needs a
 // checked-in file), falling back to a local, gitignored
@@ -28,7 +33,7 @@ android {
         applicationId "com.facto.mobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
+        versionCode gitVersionCode
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

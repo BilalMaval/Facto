@@ -68,6 +68,33 @@ export type Database = {
           },
         ]
       }
+      device_push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       invitations: {
         Row: {
           created_at: string
@@ -918,6 +945,18 @@ export type Database = {
           role: string
           status: string
         }[]
+      }
+      get_invite_recipient_tokens: {
+        Args: { p_invitation_id: string }
+        Returns: string[]
+      }
+      get_payment_submission_recipient_tokens: {
+        Args: { p_submission_id: string }
+        Returns: string[]
+      }
+      get_ticket_reply_recipient_tokens: {
+        Args: { p_ticket_id: string }
+        Returns: string[]
       }
       has_org_role: {
         Args: { p_org_id: string; p_roles: string[] }

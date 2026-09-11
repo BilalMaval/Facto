@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyTicketReply } from '@/lib/push/notify'
 
 export type FormState = { error?: string; success?: boolean } | null
 
@@ -47,6 +49,7 @@ export async function postReply(_prevState: FormState, formData: FormData): Prom
     return { error: t('common.genericError') }
   }
 
+  after(() => notifyTicketReply(ticketId))
   revalidatePath(`/dashboard/support/${ticketId}`)
   return { success: true }
 }

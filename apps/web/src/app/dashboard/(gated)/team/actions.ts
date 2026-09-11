@@ -2,8 +2,10 @@
 
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { getTranslations } from 'next-intl/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyInviteCreated } from '@/lib/push/notify'
 
 export type FormState = { error?: string; success?: boolean } | null
 
@@ -42,7 +44,7 @@ export async function inviteMember(_prevState: FormState, formData: FormData): P
   }
 
   const supabase = await createClient()
-  const { error } = await supabase.rpc('create_invitation', {
+  const { data: invitationId, error } = await supabase.rpc('create_invitation', {
     p_org_id: orgId,
     p_email: email,
     p_role: role,
@@ -52,6 +54,7 @@ export async function inviteMember(_prevState: FormState, formData: FormData): P
     return { error: await friendlyMessage(error) }
   }
 
+  after(() => notifyInviteCreated(invitationId))
   revalidatePath('/dashboard/team')
   return { success: true }
 }

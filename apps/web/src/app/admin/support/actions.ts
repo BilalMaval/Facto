@@ -1,7 +1,9 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyTicketReply } from '@/lib/push/notify'
 
 export type FormState = { error?: string; success?: boolean } | null
 
@@ -20,6 +22,7 @@ export async function postAdminReply(_prevState: FormState, formData: FormData):
     return { error: error.message }
   }
 
+  after(() => notifyTicketReply(ticketId))
   revalidatePath(`/admin/support/${ticketId}`)
   revalidatePath('/admin/support')
   return { success: true }

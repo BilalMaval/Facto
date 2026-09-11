@@ -7,6 +7,8 @@ import { createClient } from '@/lib/supabase/server'
 import { countUnreadByTicket } from '@/lib/support'
 import { RealtimeRefresh } from '@/components/RealtimeRefresh'
 import { OfflineQueueBanner } from '@/components/OfflineQueueBanner'
+import { PushNotificationInit } from '@/components/PushNotificationInit'
+import { DesktopNotificationListener } from '@/components/DesktopNotificationListener'
 import { orgScopedSubscriptions } from '@/lib/realtimeSubscriptions'
 import type { WeekStartDay } from '@/lib/dates'
 import { DashboardNav } from './DashboardNav'
@@ -61,6 +63,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-full flex-col bg-zinc-50">
       <RealtimeRefresh subscriptions={orgScopedSubscriptions(membership.organization.id)} />
+      <PushNotificationInit />
+      <DesktopNotificationListener
+        variant="dashboard"
+        organizationId={membership.organization.id}
+        currentUserId={user.id}
+      />
       <DashboardNav
         orgName={membership.organization.name}
         role={membership.role}

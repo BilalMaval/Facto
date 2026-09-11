@@ -11,7 +11,8 @@
     "@capacitor/android": "^7",
     "@capacitor/core": "^7",
     "@capacitor/ios": "^7",
-    "@capacitor/preferences": "^7"
+    "@capacitor/preferences": "^7",
+    "@capacitor/push-notifications": "^7"
   },
   "devDependencies": {
     "@capacitor/cli": "^7",

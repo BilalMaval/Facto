@@ -4,6 +4,8 @@ import { getResilientUser } from '@/lib/supabase/resilientUser'
 import { isPlatformAdmin } from '@/lib/platformAdmin'
 import { RealtimeRefresh } from '@/components/RealtimeRefresh'
 import { ADMIN_SUBSCRIPTIONS } from '@/lib/realtimeSubscriptions'
+import { PushNotificationInit } from '@/components/PushNotificationInit'
+import { DesktopNotificationListener } from '@/components/DesktopNotificationListener'
 import { AdminNav } from './AdminNav'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -23,6 +25,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-full flex-col bg-zinc-50">
       <RealtimeRefresh subscriptions={ADMIN_SUBSCRIPTIONS} />
+      <PushNotificationInit />
+      <DesktopNotificationListener variant="admin" />
       <AdminNav userEmail={user.email ?? ''} supportBadgeCount={openTicketCount ?? 0} />
       <main className="flex-1">{children}</main>
     </div>

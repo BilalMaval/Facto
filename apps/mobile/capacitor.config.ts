@@ -11,12 +11,7 @@ import type { CapacitorConfig } from '@capacitor/cli'
 // once `server.url` is set — see www/index.html for why it's just a stub,
 // exactly like desktop/src's unused create-tauri-app template.
 
-// Fill this in once the production domain is live. Left blank deliberately —
-// see the guard below, which refuses to produce a production-shaped config
-// pointed at nothing rather than silently shipping a broken build. Matches
-// apps/web/src/lib/supabase/envGuard.ts's philosophy in this codebase: the
-// safe path is the default, the permissive (dev) path requires opting in.
-const PRODUCTION_APP_URL = '' // TODO: e.g. 'https://app.yourcompany.com'
+const PRODUCTION_APP_URL = 'https://munshiman.com'
 
 // Opt-in only — production shape is the default so a plain `npx cap sync
 // android` / `npx cap build android` can never accidentally produce a
