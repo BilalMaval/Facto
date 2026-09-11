@@ -34,7 +34,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "PASTE-YOUR-TAURI-SIGNER-PUBLIC-KEY-HERE",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEEzQzM0MEI0OUZDMTk2NEMKUldSTWxzR2Z0RUREbzVjU3FzQ2VvK214Rkw4SUJRcnVHb0JNN240UE1yeFRFbTZWdkQybzY5Rm4K",
       "endpoints": [
         "https://github.com/BilalMaval/Facto/releases/latest/download/latest.json"
       ]
