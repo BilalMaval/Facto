@@ -23,6 +23,19 @@ type WorkCode = {
 
 const initialState: FormState = null
 
+const ICON_BTN = 'inline-flex h-9 w-9 items-center justify-center rounded-md'
+const SVG_PROPS = {
+  width: 18,
+  height: 18,
+  viewBox: '0 0 24 24',
+  fill: 'none',
+  stroke: 'currentColor',
+  strokeWidth: 1.8,
+  strokeLinecap: 'round',
+  strokeLinejoin: 'round',
+  'aria-hidden': true,
+} as const
+
 export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; organizationId: string }) {
   const t = useTranslations('workCodes')
   const tc = useTranslations('common')
@@ -53,15 +66,15 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
   }, [code, organizationId, workCode.id, workCode.code])
 
   return (
-    <div className="flex flex-wrap items-end gap-3 py-4">
-      <form action={formAction} className="flex flex-1 flex-wrap items-end gap-3 min-w-[280px]">
+    <div className="flex flex-wrap items-end gap-2 py-4 sm:flex-nowrap">
+      <form action={formAction} className="flex min-w-[280px] flex-1 flex-wrap items-end gap-2 sm:flex-nowrap">
         <input type="hidden" name="id" value={workCode.id} />
 
         {state?.error && (
           <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
         )}
 
-        <div className="w-28">
+        <div className="w-24 shrink-0">
           <label htmlFor={`code-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
             {t('form.codeLabel')}
           </label>
@@ -97,7 +110,7 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
             <p className="mt-1 text-xs text-red-600">{t('form.descriptionRequired')}</p>
           )}
         </div>
-        <div className="w-32">
+        <div className="w-28 shrink-0">
           <label htmlFor={`rate-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
             {t('form.rateLabel')}
           </label>
@@ -126,35 +139,60 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
         </button>
       </form>
 
-      <form action={toggleWorkCodeActive}>
-        <input type="hidden" name="id" value={workCode.id} />
-        <input type="hidden" name="nextActive" value={(!workCode.is_active).toString()} />
-        <button
-          type="submit"
-          className={`rounded-md px-3 py-2 text-sm ${
-            workCode.is_active ? 'text-red-600 hover:bg-red-50' : 'text-emerald-700 hover:bg-emerald-50'
-          }`}
-        >
-          {workCode.is_active ? t('row.deactivate') : t('row.activate')}
-        </button>
-      </form>
+      <div className="flex items-center gap-0.5">
+        <form action={toggleWorkCodeActive}>
+          <input type="hidden" name="id" value={workCode.id} />
+          <input type="hidden" name="nextActive" value={(!workCode.is_active).toString()} />
+          <button
+            type="submit"
+            title={workCode.is_active ? t('row.deactivate') : t('row.activate')}
+            aria-label={workCode.is_active ? t('row.deactivate') : t('row.activate')}
+            className={`${ICON_BTN} ${
+              workCode.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-700 hover:bg-emerald-50'
+            }`}
+          >
+            {workCode.is_active ? (
+              <svg {...SVG_PROPS}>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M5.6 5.6l12.8 12.8" />
+              </svg>
+            ) : (
+              <svg {...SVG_PROPS}>
+                <circle cx="12" cy="12" r="9" />
+                <path d="M8 12.5l3 3 5-6" />
+              </svg>
+            )}
+          </button>
+        </form>
 
-      <form action={duplicateWorkCode}>
-        <input type="hidden" name="id" value={workCode.id} />
-        <button type="submit" className="rounded-md px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50">
-          {t('row.duplicate')}
-        </button>
-      </form>
+        <form action={duplicateWorkCode}>
+          <input type="hidden" name="id" value={workCode.id} />
+          <button
+            type="submit"
+            title={t('row.duplicate')}
+            aria-label={t('row.duplicate')}
+            className={`${ICON_BTN} text-zinc-600 hover:bg-zinc-100`}
+          >
+            <svg {...SVG_PROPS}>
+              <rect x="9" y="9" width="11" height="11" rx="2" />
+              <path d="M5 15V6a2 2 0 012-2h9" />
+            </svg>
+          </button>
+        </form>
 
-      <form action={deleteWorkCode}>
-        <input type="hidden" name="id" value={workCode.id} />
-        <ConfirmButton
-          confirmText={t('row.deleteConfirm')}
-          className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-        >
-          {t('row.delete')}
-        </ConfirmButton>
-      </form>
+        <form action={deleteWorkCode}>
+          <input type="hidden" name="id" value={workCode.id} />
+          <ConfirmButton
+            confirmText={t('row.deleteConfirm')}
+            title={t('row.delete')}
+            className={`${ICON_BTN} text-red-600 hover:bg-red-50`}
+          >
+            <svg {...SVG_PROPS}>
+              <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3" />
+            </svg>
+          </ConfirmButton>
+        </form>
+      </div>
     </div>
   )
 }
