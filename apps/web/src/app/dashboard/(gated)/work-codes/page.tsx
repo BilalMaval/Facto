@@ -74,7 +74,7 @@ export default async function WorkCodesPage({
           </p>
         )}
         {workCodes.map((wc) => (
-          <WorkCodeRow key={wc.id} workCode={wc} />
+          <WorkCodeRow key={wc.id} workCode={wc} organizationId={org.id} />
         ))}
       </div>
     </div>

@@ -318,7 +318,9 @@
     },
     "row": {
       "deactivate": "Deactivate",
-      "activate": "Activate"
+      "activate": "Activate",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this work code? This can't be undone."
     },
     "availability": {
       "checking": "Checking availability…",
@@ -328,7 +330,8 @@
     "errors": {
       "codeTaken": "A work code with that code already exists.",
       "createRequiredFields": "Code, description, and rate are required",
-      "updateRequiredFields": "Description and rate are required"
+      "updateRequiredFields": "Code, description, and rate are required",
+      "codeInUse": "This code has recorded entries and can't be deleted. Deactivate it instead."
     }
   },
   "settings": {

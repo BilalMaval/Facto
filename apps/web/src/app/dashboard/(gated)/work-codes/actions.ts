@@ -15,17 +15,26 @@ async function friendlyMessage(error: { code?: string; message: string }) {
   return t('common.genericError')
 }
 
-export async function checkWorkCodeAvailable(organizationId: string, code: string) {
+async function friendlyDeleteMessage(error: { code?: string; message: string }) {
+  const t = await getTranslations()
+  if (error.code === '23503') {
+    return t('workCodes.errors.codeInUse')
+  }
+  return t('common.genericError')
+}
+
+export async function checkWorkCodeAvailable(organizationId: string, code: string, excludeId?: string) {
   const trimmed = code.trim()
   if (!trimmed) return { available: true }
 
   const supabase = await createClient()
-  const { data } = await supabase
+  let query = supabase
     .from('work_codes')
     .select('id')
     .eq('organization_id', organizationId)
     .eq('code', trimmed)
-    .maybeSingle()
+  if (excludeId) query = query.neq('id', excludeId)
+  const { data } = await query.maybeSingle()
 
   return { available: !data }
 }
@@ -60,17 +69,18 @@ export async function createWorkCode(_prevState: FormState, formData: FormData):
 export async function updateWorkCode(_prevState: FormState, formData: FormData): Promise<FormState> {
   const t = await getTranslations('workCodes.errors')
   const id = String(formData.get('id') ?? '')
+  const code = String(formData.get('code') ?? '').trim()
   const description = String(formData.get('description') ?? '').trim()
   const rate = Number(formData.get('rate') ?? '')
 
-  if (!description || !rate) {
+  if (!code || !description || !rate) {
     return { error: t('updateRequiredFields') }
   }
 
   const supabase = await createClient()
   const { error } = await supabase
     .from('work_codes')
-    .update({ description, rate })
+    .update({ code, description, rate })
     .eq('id', id)
 
   if (error) {
@@ -79,6 +89,19 @@ export async function updateWorkCode(_prevState: FormState, formData: FormData):
 
   revalidatePath('/dashboard/work-codes')
   return { success: true }
+}
+
+export async function deleteWorkCode(formData: FormData) {
+  const id = String(formData.get('id') ?? '')
+
+  const supabase = await createClient()
+  const { error } = await supabase.from('work_codes').delete().eq('id', id)
+
+  if (error) {
+    redirect(`/dashboard/work-codes?error=${encodeURIComponent(await friendlyDeleteMessage(error))}`)
+  }
+
+  revalidatePath('/dashboard/work-codes')
 }
 
 export async function toggleWorkCodeActive(formData: FormData) {

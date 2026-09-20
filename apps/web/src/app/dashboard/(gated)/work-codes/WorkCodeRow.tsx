@@ -1,8 +1,10 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useEffect, useState, useTransition } from 'react'
 import { useTranslations } from 'next-intl'
-import { toggleWorkCodeActive, updateWorkCode, type FormState } from './actions'
+import { checkWorkCodeAvailable, deleteWorkCode, toggleWorkCodeActive, updateWorkCode, type FormState } from './actions'
+import { ConfirmButton } from '../slips/ConfirmButton'
+import { CodeAvailabilityHint, type CodeStatus } from './CodeAvailabilityHint'
 
 type WorkCode = {
   id: string
@@ -14,28 +16,61 @@ type WorkCode = {
 
 const initialState: FormState = null
 
-export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
+export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; organizationId: string }) {
   const t = useTranslations('workCodes')
   const tc = useTranslations('common')
   const [state, formAction, pending] = useActionState(updateWorkCode, initialState)
 
+  const [code, setCode] = useState(workCode.code)
   const [description, setDescription] = useState(workCode.description)
   const [rate, setRate] = useState(String(workCode.rate))
-  const [touched, setTouched] = useState<{ description?: boolean; rate?: boolean }>({})
+  const [touched, setTouched] = useState<{ code?: boolean; description?: boolean; rate?: boolean }>({})
+  const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle')
+  const [, startChecking] = useTransition()
+
+  function handleCodeChange(value: string) {
+    setCode(value)
+    setCodeStatus(value.trim() && value.trim() !== workCode.code ? 'checking' : 'idle')
+  }
+
+  useEffect(() => {
+    const trimmed = code.trim()
+    if (!trimmed || trimmed === workCode.code) return
+    const timeout = setTimeout(() => {
+      startChecking(async () => {
+        const { available } = await checkWorkCodeAvailable(organizationId, trimmed, workCode.id)
+        setCodeStatus(available ? 'available' : 'taken')
+      })
+    }, 400)
+    return () => clearTimeout(timeout)
+  }, [code, organizationId, workCode.id, workCode.code])
 
   return (
     <div className="flex flex-wrap items-end gap-3 py-4">
-      <div className="w-28">
-        <p className="text-xs font-medium text-zinc-500">{t('form.codeLabel')}</p>
-        <p className="mt-1 py-2 text-sm font-medium">{workCode.code}</p>
-      </div>
-
       <form action={formAction} className="flex flex-1 flex-wrap items-end gap-3 min-w-[280px]">
         <input type="hidden" name="id" value={workCode.id} />
 
         {state?.error && (
           <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
         )}
+
+        <div className="w-28">
+          <label htmlFor={`code-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
+            {t('form.codeLabel')}
+          </label>
+          <input
+            id={`code-${workCode.id}`}
+            name="code"
+            type="text"
+            required
+            value={code}
+            onChange={(e) => handleCodeChange(e.target.value)}
+            onBlur={() => setTouched((t) => ({ ...t, code: true }))}
+            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm"
+          />
+          {touched.code && !code.trim() && <p className="mt-1 text-xs text-red-600">{t('form.codeRequired')}</p>}
+          <CodeAvailabilityHint status={codeStatus} />
+        </div>
 
         <div className="flex-1 min-w-[180px]">
           <label htmlFor={`description-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
@@ -77,7 +112,7 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
         </div>
         <button
           type="submit"
-          disabled={pending}
+          disabled={pending || codeStatus === 'taken'}
           className="rounded-md border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50 disabled:opacity-50"
         >
           {pending ? tc('saving') : tc('save')}
@@ -95,6 +130,16 @@ export function WorkCodeRow({ workCode }: { workCode: WorkCode }) {
         >
           {workCode.is_active ? t('row.deactivate') : t('row.activate')}
         </button>
+      </form>
+
+      <form action={deleteWorkCode}>
+        <input type="hidden" name="id" value={workCode.id} />
+        <ConfirmButton
+          confirmText={t('row.deleteConfirm')}
+          className="rounded-md px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+        >
+          {t('row.delete')}
+        </ConfirmButton>
       </form>
     </div>
   )
