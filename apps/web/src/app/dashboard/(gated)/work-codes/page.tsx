@@ -41,6 +41,9 @@ export default async function WorkCodesPage({
     workCodes = workCodes.filter((wc) => [wc.code, wc.description].join(' ').toLowerCase().includes(needle))
   }
 
+  const activeCount = workCodes.filter((wc) => wc.is_active).length
+  const isFiltered = Boolean(q || status)
+
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-10">
       <h1 className="text-2xl font-semibold tracking-tight">{t('title')}</h1>
@@ -67,7 +70,18 @@ export default async function WorkCodesPage({
         <WorkCodeForm organizationId={org.id} />
       </div>
 
-      <div className="mt-6 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm">
+      <p className="mt-6 text-xs text-zinc-500">
+        {t('total')}: <span className="font-medium text-zinc-700">{workCodes.length}</span>
+        {' · '}
+        {t('active')}: <span className="font-medium text-emerald-700">{activeCount}</span>
+        {' · '}
+        {t('inactive')}: <span className="font-medium text-zinc-700">{workCodes.length - activeCount}</span>
+        {isFiltered && (
+          <span className="text-zinc-400"> ({t('ofTotal', { count: allWorkCodes?.length ?? 0 })})</span>
+        )}
+      </p>
+
+      <div className="mt-2 divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white px-4 shadow-sm">
         {!workCodes.length && (
           <p className="py-4 text-sm text-zinc-400">
             {allWorkCodes?.length ? t('noneMatchFilters') : t('noneYet')}

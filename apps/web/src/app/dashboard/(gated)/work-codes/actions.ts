@@ -91,6 +91,43 @@ export async function updateWorkCode(_prevState: FormState, formData: FormData):
   return { success: true }
 }
 
+export async function duplicateWorkCode(formData: FormData) {
+  const id = String(formData.get('id') ?? '')
+
+  const supabase = await createClient()
+  const { data: original } = await supabase
+    .from('work_codes')
+    .select('organization_id, code, description, rate')
+    .eq('id', id)
+    .maybeSingle()
+
+  if (!original) {
+    redirect(`/dashboard/work-codes?error=${encodeURIComponent((await getTranslations('common'))('genericError'))}`)
+  }
+
+  const { data: existing } = await supabase
+    .from('work_codes')
+    .select('code')
+    .eq('organization_id', original.organization_id)
+  const taken = new Set((existing ?? []).map((r) => r.code))
+
+  let code = `${original.code}-copy`
+  for (let n = 2; taken.has(code); n++) code = `${original.code}-copy-${n}`
+
+  const { error } = await supabase.from('work_codes').insert({
+    organization_id: original.organization_id,
+    code,
+    description: original.description,
+    rate: original.rate,
+  })
+
+  if (error) {
+    redirect(`/dashboard/work-codes?error=${encodeURIComponent(await friendlyMessage(error))}`)
+  }
+
+  revalidatePath('/dashboard/work-codes')
+}
+
 export async function deleteWorkCode(formData: FormData) {
   const id = String(formData.get('id') ?? '')
 

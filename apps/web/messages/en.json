@@ -302,6 +302,8 @@
     "active": "Active",
     "inactive": "Inactive",
     "inactiveSuffix": " (inactive)",
+    "total": "Total",
+    "ofTotal": "of {count} total",
     "noneMatchFilters": "No work codes match these filters.",
     "noneYet": "No work codes yet.",
     "form": {
@@ -319,6 +321,7 @@
     "row": {
       "deactivate": "Deactivate",
       "activate": "Activate",
+      "duplicate": "Duplicate",
       "delete": "Delete",
       "deleteConfirm": "Delete this work code? This can't be undone."
     },

@@ -302,6 +302,8 @@
     "active": "فعال",
     "inactive": "غیر فعال",
     "inactiveSuffix": " (غیر فعال)",
+    "total": "کل",
+    "ofTotal": "کل {count} میں سے",
     "noneMatchFilters": "ان فلٹرز سے کوئی ورک کوڈ نہیں ملا۔",
     "noneYet": "ابھی تک کوئی ورک کوڈ نہیں۔",
     "form": {
@@ -319,6 +321,7 @@
     "row": {
       "deactivate": "غیر فعال کریں",
       "activate": "فعال کریں",
+      "duplicate": "نقل بنائیں",
       "delete": "حذف کریں",
       "deleteConfirm": "یہ ورک کوڈ حذف کریں؟ اسے واپس نہیں لایا جا سکتا۔"
     },

@@ -2,7 +2,14 @@
 
 import { useActionState, useEffect, useState, useTransition } from 'react'
 import { useTranslations } from 'next-intl'
-import { checkWorkCodeAvailable, deleteWorkCode, toggleWorkCodeActive, updateWorkCode, type FormState } from './actions'
+import {
+  checkWorkCodeAvailable,
+  deleteWorkCode,
+  duplicateWorkCode,
+  toggleWorkCodeActive,
+  updateWorkCode,
+  type FormState,
+} from './actions'
 import { ConfirmButton } from '../slips/ConfirmButton'
 import { CodeAvailabilityHint, type CodeStatus } from './CodeAvailabilityHint'
 
@@ -129,6 +136,13 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
           }`}
         >
           {workCode.is_active ? t('row.deactivate') : t('row.activate')}
+        </button>
+      </form>
+
+      <form action={duplicateWorkCode}>
+        <input type="hidden" name="id" value={workCode.id} />
+        <button type="submit" className="rounded-md px-3 py-2 text-sm text-zinc-600 hover:bg-zinc-50">
+          {t('row.duplicate')}
         </button>
       </form>
 
