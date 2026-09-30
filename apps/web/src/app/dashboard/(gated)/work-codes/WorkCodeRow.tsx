@@ -48,6 +48,22 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
   const [codeStatus, setCodeStatus] = useState<CodeStatus>('idle')
   const [, startChecking] = useTransition()
 
+  const [justSaved, setJustSaved] = useState(false)
+  const [lastHandledState, setLastHandledState] = useState<FormState>(initialState)
+  if (state !== lastHandledState) {
+    setLastHandledState(state)
+    if (state?.success) {
+      setCodeStatus('idle')
+      setJustSaved(true)
+    }
+  }
+
+  useEffect(() => {
+    if (!justSaved) return
+    const timeout = setTimeout(() => setJustSaved(false), 2500)
+    return () => clearTimeout(timeout)
+  }, [justSaved])
+
   function handleCodeChange(value: string) {
     setCode(value)
     setCodeStatus(value.trim() && value.trim() !== workCode.code ? 'checking' : 'idle')
@@ -147,6 +163,14 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
         >
           {pending ? tc('saving') : tc('save')}
         </button>
+        {justSaved && !state?.error && (
+          <span className="flex items-center gap-1 text-xs text-emerald-600">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            {tc('saved')}
+          </span>
+        )}
       </form>
 
       <div className="flex items-center gap-0.5">
