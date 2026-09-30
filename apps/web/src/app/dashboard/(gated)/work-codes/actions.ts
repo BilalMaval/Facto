@@ -80,7 +80,7 @@ export async function updateWorkCode(_prevState: FormState, formData: FormData):
   const supabase = await createClient()
   const { error } = await supabase
     .from('work_codes')
-    .update({ code, description, rate })
+    .update({ code, description, rate, updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) {
@@ -148,7 +148,7 @@ export async function toggleWorkCodeActive(formData: FormData) {
   const supabase = await createClient()
   const { error } = await supabase
     .from('work_codes')
-    .update({ is_active: nextActive })
+    .update({ is_active: nextActive, updated_at: new Date().toISOString() })
     .eq('id', id)
 
   if (error) {

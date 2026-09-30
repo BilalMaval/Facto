@@ -306,6 +306,15 @@
     "ofTotal": "کل {count} میں سے",
     "noneMatchFilters": "ان فلٹرز سے کوئی ورک کوڈ نہیں ملا۔",
     "noneYet": "ابھی تک کوئی ورک کوڈ نہیں۔",
+    "sort": {
+      "label": "ترتیب",
+      "codeAsc": "کوڈ (A–Z)",
+      "codeDesc": "کوڈ (Z–A)",
+      "createdDesc": "نئے بنائے گئے پہلے",
+      "createdAsc": "پرانے بنائے گئے پہلے",
+      "updatedDesc": "حال ہی میں تبدیل شدہ",
+      "updatedAsc": "سب سے پرانی تبدیلی پہلے"
+    },
     "form": {
       "codeLabel": "کوڈ",
       "codePlaceholder": "مثلاً ST-01",
@@ -323,7 +332,9 @@
       "activate": "فعال کریں",
       "duplicate": "نقل بنائیں",
       "delete": "حذف کریں",
-      "deleteConfirm": "یہ ورک کوڈ حذف کریں؟ اسے واپس نہیں لایا جا سکتا۔"
+      "deleteConfirm": "یہ ورک کوڈ حذف کریں؟ اسے واپس نہیں لایا جا سکتا۔",
+      "statusActive": "فعال",
+      "statusInactive": "غیر فعال"
     },
     "availability": {
       "checking": "دستیابی چیک ہو رہی ہے…",

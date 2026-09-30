@@ -74,6 +74,16 @@ export function WorkCodeRow({ workCode, organizationId }: { workCode: WorkCode; 
           <p className="w-full rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
         )}
 
+        <div
+          className="flex h-9 w-4 shrink-0 items-center justify-center self-end"
+          title={workCode.is_active ? t('row.statusActive') : t('row.statusInactive')}
+        >
+          <span
+            aria-label={workCode.is_active ? t('row.statusActive') : t('row.statusInactive')}
+            className={`h-2.5 w-2.5 rounded-full ${workCode.is_active ? 'bg-emerald-500' : 'bg-zinc-300'}`}
+          />
+        </div>
+
         <div className="w-24 shrink-0">
           <label htmlFor={`code-${workCode.id}`} className="block text-xs font-medium text-zinc-500">
             {t('form.codeLabel')}

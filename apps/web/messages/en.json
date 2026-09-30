@@ -306,6 +306,15 @@
     "ofTotal": "of {count} total",
     "noneMatchFilters": "No work codes match these filters.",
     "noneYet": "No work codes yet.",
+    "sort": {
+      "label": "Sort",
+      "codeAsc": "Code (A–Z)",
+      "codeDesc": "Code (Z–A)",
+      "createdDesc": "Newest created",
+      "createdAsc": "Oldest created",
+      "updatedDesc": "Recently modified",
+      "updatedAsc": "Least recently modified"
+    },
     "form": {
       "codeLabel": "Code",
       "codePlaceholder": "e.g. ST-01",
@@ -323,7 +332,9 @@
       "activate": "Activate",
       "duplicate": "Duplicate",
       "delete": "Delete",
-      "deleteConfirm": "Delete this work code? This can't be undone."
+      "deleteConfirm": "Delete this work code? This can't be undone.",
+      "statusActive": "Active",
+      "statusInactive": "Inactive"
     },
     "availability": {
       "checking": "Checking availability…",

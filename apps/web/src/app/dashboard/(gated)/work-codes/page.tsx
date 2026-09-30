@@ -9,9 +9,9 @@ import { WorkCodeRow } from './WorkCodeRow'
 export default async function WorkCodesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; q?: string; status?: string }>
+  searchParams: Promise<{ error?: string; q?: string; status?: string; sort?: string }>
 }) {
-  const { error, q = '', status = '' } = await searchParams
+  const { error, q = '', status = '', sort = 'code_asc' } = await searchParams
   const t = await getTranslations('workCodes')
   const { user, membership } = await getCurrentMembership()
 
@@ -27,12 +27,30 @@ export default async function WorkCodesPage({
     { value: 'inactive', label: t('inactive') },
   ]
 
+  const SORT_COLUMNS: Record<string, { column: 'code' | 'created_at' | 'updated_at'; ascending: boolean }> = {
+    code_asc: { column: 'code', ascending: true },
+    code_desc: { column: 'code', ascending: false },
+    created_desc: { column: 'created_at', ascending: false },
+    created_asc: { column: 'created_at', ascending: true },
+    updated_desc: { column: 'updated_at', ascending: false },
+    updated_asc: { column: 'updated_at', ascending: true },
+  }
+  const SORT_OPTIONS = [
+    { value: 'code_asc', label: t('sort.codeAsc') },
+    { value: 'code_desc', label: t('sort.codeDesc') },
+    { value: 'created_desc', label: t('sort.createdDesc') },
+    { value: 'created_asc', label: t('sort.createdAsc') },
+    { value: 'updated_desc', label: t('sort.updatedDesc') },
+    { value: 'updated_asc', label: t('sort.updatedAsc') },
+  ]
+  const activeSort = SORT_COLUMNS[sort] ?? SORT_COLUMNS.code_asc
+
   const supabase = await createClient()
   const { data: allWorkCodes } = await supabase
     .from('work_codes')
-    .select('id, code, description, rate, is_active')
+    .select('id, code, description, rate, is_active, created_at, updated_at')
     .eq('organization_id', org.id)
-    .order('code', { ascending: true })
+    .order(activeSort.column, { ascending: activeSort.ascending })
 
   let workCodes = allWorkCodes ?? []
   if (status) workCodes = workCodes.filter((wc) => (status === 'active' ? wc.is_active : !wc.is_active))
@@ -59,7 +77,10 @@ export default async function WorkCodesPage({
         basePath="/dashboard/work-codes"
         q={q}
         searchPlaceholder={t('searchPlaceholder')}
-        selects={[{ name: 'status', label: t('filterStatus'), value: status, options: STATUS_OPTIONS }]}
+        selects={[
+          { name: 'status', label: t('filterStatus'), value: status, options: STATUS_OPTIONS },
+          { name: 'sort', label: t('sort.label'), value: sort, options: SORT_OPTIONS },
+        ]}
         suggestions={(allWorkCodes ?? []).map((wc) => ({
           value: wc.code,
           label: `${wc.code} — ${wc.description}` + (wc.is_active ? '' : t('inactiveSuffix')),

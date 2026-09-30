@@ -633,6 +633,7 @@ export type Database = {
           is_active: boolean
           organization_id: string
           rate: number
+          updated_at: string
         }
         Insert: {
           code: string
@@ -642,6 +643,7 @@ export type Database = {
           is_active?: boolean
           organization_id: string
           rate: number
+          updated_at?: string
         }
         Update: {
           code?: string
@@ -651,6 +653,7 @@ export type Database = {
           is_active?: boolean
           organization_id?: string
           rate?: number
+          updated_at?: string
         }
         Relationships: [
           {
